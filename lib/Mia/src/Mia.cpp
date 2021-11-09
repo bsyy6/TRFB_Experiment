@@ -224,7 +224,7 @@ char Mia::write2(char cmdName[], int nBytes)
     }
     else
     { 
-      Serial2.print((int)bytex, HEX);                                      // what is recieved was not "<"
+      Serial2.print((int)bytex);                                      // what is recieved was not "<"
       timeout = ((micros() - time) > 2000); // this part of code should not take more than 2 msec
       counter = counter + 1;
     }
