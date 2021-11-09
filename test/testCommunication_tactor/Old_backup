@@ -1,0 +1,400 @@
+#include <arduino.h>
+
+
+/* [01] Mia hand variables */
+
+/* [02] FIFO */
+unsigned char FIFO[10] = {0};
+int  FIFOsize = 0;
+int  maxFIFOsize = 10;
+unsigned char newData = 0;
+// things related to on-set detection
+
+
+/* [03] TrFB variables */
+// force readings from the finger
+double maxThreshold = 220;
+double minThreshold = 120;
+double rangeThreshold = maxThreshold - minThreshold;
+char minTheshold_B = 1;
+char maxThreshold_B = 255;
+
+
+unsigned char increased = 0;
+// timers and flags
+double activeTimeLimit = 500; //[0] can't go more than 5 second of active feedback ( assume interrupts at 100 Hz )
+double holdTimeLimit = 250;    //[1] detect a stable hold
+double mainTimer = 0;          //[2]
+double holdTimer = 0;          //[3]
+double coolDownTimer = 300;   //[4] enforced resting period
+double coolDownTimerReset = coolDownTimer;
+double coolDownFlag = 0;       //[5]
+double droppedFlag = 0;        //[6]
+double liftedFlag = 0;         //[7]
+
+
+// state : 0 is nothing, 1 is start hold, 2 is stable hold
+volatile unsigned char state = 0;
+
+
+
+long maxStroke = 24576UL;
+unsigned int STROKES[256]={ 0 , 19 , 38 , 59 , 80 , 101 , 124 , 147 , 170 , 195 , 220 , 246 , 272 , 300 , 327 , 356 , 386 , 416 , 446 , 478 , 510 , 543 , 577 , 611 , 646 , 682 , 718 , 755 , 793 , 832 , 871 , 911 , 952 , 993 , 1036 , 1079 , 1122 , 1167 , 1212 , 1257 , 1304 , 1351 , 1399 , 1448 , 1497 , 1548 , 1599 , 1650 , 1703 , 1756 , 1810 , 1864 , 1919 , 1976 , 2032 , 2090 , 2148 , 2207 , 2267 , 2328 , 2389 , 2451 , 2514 , 2577 , 2642 , 2707 , 2772 , 2839 , 2906 , 2975 , 3043 , 3113 , 3183 , 3255 , 3327 , 3399 , 3473 , 3547 , 3622 , 3698 , 3775 , 3852 , 3930 , 4009 , 4089 , 4170 , 4251 , 4333 , 4416 , 4500 , 4584 , 4670 , 4756 , 4843 , 4931 , 5019 , 5109 , 5199 , 5290 , 5382 , 5475 , 5568 , 5663 , 5758 , 5854 , 5951 , 6049 , 6147 , 6247 , 6347 , 6448 , 6550 , 6653 , 6757 , 6861 , 6967 , 7073 , 7180 , 7288 , 7397 , 7507 , 7618 , 7730 , 7842 , 7955 , 8070 , 8185 , 8301 , 8418 , 8536 , 8655 , 8775 , 8895 , 9017 , 9139 , 9263 , 9387 , 9513 , 9639 , 9766 , 9894 , 10024 , 10154 , 10285 , 10417 , 10550 , 10684 , 10819 , 10955 , 11092 , 11230 , 11369 , 11509 , 11650 , 11792 , 11935 , 12080 , 12225 , 12371 , 12518 , 12666 , 12816 , 12966 , 13118 , 13270 , 13424 , 13579 , 13734 , 13891 , 14049 , 14208 , 14369 , 14530 , 14692 , 14856 , 15021 , 15187 , 15354 , 15522 , 15691 , 15862 , 16034 , 16207 , 16381 , 16556 , 16733 , 16910 , 17089 , 17270 , 17451 , 17634 , 17818 , 18003 , 18190 , 18377 , 18567 , 18757 , 18949 , 19142 , 19336 , 19532 , 19729 , 19928 , 20128 , 20329 , 20532 , 20736 , 20941 , 21148 , 21357 , 21566 , 21778 , 21991 , 22205 , 22421 , 22638 , 22857 , 23077 , 23299 , 23523 , 23748 , 23974 , 24203 , 24433 , 24664 , 24897 , 25132 , 25369 , 25607 , 25847 , 26089 , 26333 , 26578 , 26825 , 27074 , 27325 , 27578 , 27832 , 28088 , 28347 , 28607 , 28869 , 29133 , 29400 , 29668 , 29938 , 30211 , 30485 , 30762 , 31040 , 31321 , 31604 , 31890 , 32177 , 32467 , 32759};
+int board = 0x01;
+long bottom = 1000UL; // 100,000 Pa is set as bias
+long top    = 3500UL; // 350,000 Pa is set as maximum expected value
+long stroke = 0UL;
+int test = 0;
+unsigned char flagStartState2 = 0;
+volatile double t = 0;
+
+
+unsigned char buf[4] = {0x00};
+unsigned char pressure[3] = {10,10,10};
+
+
+void setup()
+{
+  // copmuter
+  Serial.begin(115200);
+  // Mia
+  Serial1.begin(115200);
+  // tactors
+  Serial2.begin(115200);
+  // fastFAST!
+
+
+  // Built-in Led turns on if there is overflow
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, LOW);
+
+
+  
+  // ISR button
+  noInterrupts();
+  //pinMode(LED_BUILTIN, OUTPUT);
+  //pinMode(2,INPUT_PULLUP);
+  //attachInterrupt(digitalPinToInterrupt(2), saveData, FALLING);
+  // ISR
+  TCCR1A = 0;
+  TCCR1B = 0;
+  //OCR1A = 61;// OCR1A = 61 --> 1 kHz
+  //OCR1B = 50;
+  // pre-scalers
+  TCCR1B |= (1 << CS10);    // 1 PRESCALE
+  TIMSK1 |= (1 << TOIE1); // Timeroverflow enable
+  TCNT1 = 49536;
+  interrupts();
+}
+
+void int2char(){
+  pressure[0] = Forces[4] - 100;
+}
+
+
+
+
+volatile bool vibe = false;
+volatile unsigned long lastDebounceTime = millis();
+volatile unsigned long timeee = lastDebounceTime + 101;
+
+
+void vibes(){
+  // upon any press the button goes offline for 100 msec. ( to avoid bouncing )
+  if ((timeee - lastDebounceTime) > 100 & vibe == false) {
+    vibe = true;
+    // update last time this bounce happened
+    lastDebounceTime = timeee;
+  }
+}
+
+
+
+unsigned char readData () {
+  //return ( (((long)buf[0] << 24) & 0xFF000000) | (((long)buf[1] << 16) & 0xFF0000) | (((long)buf[2] << 8) & 0xFF00) | (((long)buf[3]) & 0xFF) );
+  return(pressure[0]);
+}
+
+
+/* to the tactors */
+
+
+void checkStatus ( char cmdName[] , char vars[], int board){
+  
+  switch ( tolower(cmdName) ){
+    case  'status':
+      Serial2.write(0x5F);
+      Serial2.write(board);
+      Serial2.write(0x70);
+      Serial2.write(board);
+      Serial2.write(board); // if not used, code doesn't work
+      break;
+    case 'stop':
+      Serial2.write(0x5F);
+      Serial2.write(board);
+      Serial2.write(0x71);
+      Serial2.write(board);
+      Serial2.write(0x01);// if not used, code doesn't work
+      break;
+    case 'setp':
+      Serial.write(0x5F);
+      Serial.write(board);
+      Serial.write(0x21+(vars[1]*16));
+      Serial.write(vars[2]);
+      Serial.write(vars[3]);
+      Serial.write(board);
+      Serial.write(0x01);// if not used, code doesn't work
+      break;
+    case 'vibrate':
+      Serial2.write(0x01);
+      Serial2.write(0x80);
+      Serial2.write(0x4A);
+      Serial2.write(0x01);
+      break;
+  }
+  
+}
+
+
+
+long findStroke() {
+  return (STROKES[pressure[0]]);
+}
+
+
+void long2buf (long data, unsigned char* buf){
+  /* this takes data [ long ] and cast it in a 4 bytes buffer buf, for later to be manipulated and sent through serial 1 byte at a time
+  ( yes, seems unecessary but the sleepless nights proved otherwise ) */
+  buf[0] = (unsigned char) ((data >> 24)& 0xFF );
+  buf[1] = (unsigned char) ((data >> 16)& 0xFF );
+  buf[2] = (unsigned char) ((data >>  8)& 0xFF );
+  buf[3] = (unsigned char) ((data      )& 0xFF );
+}
+
+
+
+void feedbackOn (){
+  stroke = findStroke();
+  long2buf(stroke,buf);
+  checkStatus('setp', buf , board); 
+}
+
+
+double Max = 0;
+double fadeTime = 500;
+
+
+
+void feedbackFade(double fadeTime){
+  
+   if ( flagStartState2 == 0)
+   {
+   Max = findStroke();
+   flagStartState2 = 1;
+   }
+   
+   if ( t <= fadeTime )
+   {
+   //stroke = Max - Max*t/fadeTime; // linear
+   stroke = Max - Max*(t/fadeTime)*(t/fadeTime); // non linear fade
+   //stroke = findStroke(pressure[0], bottom, top ,maxStroke);
+   long2buf(stroke,buf);
+   delay(1); // necessary evil ...
+   checkStatus('setp', buf , board);
+   }
+}
+
+
+bool Record = false;
+long lastDebounceTime2 = lastDebounceTime;
+
+
+/* press button to save data */
+void saveData(){
+
+
+}
+
+
+// ----- [00] Interrupts ----//
+ISR(TIMER1_OVF_vect) { // EVERY 10 msec
+    if (state == 2){
+    if (t <= fadeTime){
+    t += 1;  
+    }
+    else
+    {
+    t = fadeTime;
+    }
+  }else{
+    t = 0;
+  }
+  TCNT1 = 49536;
+}
+
+
+int counter2 = 0;
+unsigned long lastLoop;
+unsigned long maxTime =0;
+unsigned long tm;
+
+
+long itik = 0;
+long itok = 0;
+
+
+//debuggr
+char x [2] = {0};
+String msgg1 = "@ADA100000000000*\r";
+String msgg0 = "@ADA000000000000*\r";
+
+
+void loop()
+{
+
+
+  itik = millis();
+  timeee = itik;
+  
+  // run state logic, depending on state we change the feedback given to user.
+  state = stateUpdate();
+  
+  readMiaBytes();
+  Strings2Int();
+  int2char();
+  readFIFO();
+  
+  // if lift off or replaced run vibrations.
+  if (vibe){
+    Serial2.write(0x5F);
+    Serial2.write(0x01);
+    Serial2.write(0x71);
+    Serial2.write(0x01);
+    Serial2.write(0x01);
+    Serial2.write(0x80);
+    Serial2.write(0x45);
+    Serial2.write(0x01);
+    vibe = false; //debugging 
+  }else{
+
+
+    // motor commands for continuous feedback
+    if ( state == 1 ){
+      feedbackOn();
+    }
+    if ( state == 2 ){
+      feedbackFade(fadeTime);
+    }
+  
+  }
+  
+  /* send data to save */
+  /*
+  if (Serial.available()){
+    Serial.read();
+    vibe = true;
+    Record = !Record;
+  }
+
+
+  if (Record){
+  Serial.print(millis() - timeee);
+  Serial.print("\t");
+  Serial.print(vibe);
+  Serial.print("\t");
+  Serial.print(newData);
+  Serial.println("\t");
+  }*/
+  // no interrupts
+  //Serial.println(millis()-lastDebounceTime2);
+  vibe =false;
+  itok = millis();
+  /*
+  if((itok - itik) >= maxTime){
+  Serial.println(maxTime);
+  maxTime = (int) itok-itik;
+  }*/
+
+
+  // expect two bytes from Serial, byte one is for the case, byte two is for number of reps
+  if (Serial.available()){
+    char i = 0;
+    x[0] = 0;
+    x[1] = 0;
+    while (Serial.available())
+    {
+      x[i] = Serial.read();
+      i++;
+      if (i == 2){
+        break;
+      }
+    }
+    if (i == 2){ // only if what is read was 3 bytes
+    for( char j = 0; j < x[1];j++){
+      switch (x[0]){
+        
+        case 0:
+        Serial.print(pressure[0]);
+        Serial.print("\t");
+        Serial.print(pressure[1]);
+        Serial.print("\t");
+        Serial.println(pressure[2]);
+        break;
+        
+        case 1:
+        for (char ix = 0; ix < 6; ix++){
+          Serial.print(Forces[ix]);
+          Serial.print("\t");
+        }
+        Serial.println(" ");
+        break;
+
+
+        case 3: //send what is read from the hand
+        for(char ix = 0; ix < 85; ix++){
+        Serial.write(MiaBytes[ix]);
+        }
+        Serial.println("");
+        break;
+
+
+        case 8:
+        Serial2.print(msgg1);
+        Serial.print(msgg1);
+        break;
+
+
+        case 9:
+        Serial2.print(msgg0);
+        Serial.print(msgg0);
+        break;
+
+
+        
+      }
+    }
+  }
+  } 
+  /*
+  
+  Serial.println("\t state \t main timer \t CDF \t DF \t LF \t hold timer \t pressure \t coolDownTimer \t stroke");
+  Serial.print((char)state, HEX);
+  Serial.print("\t");
+  Serial.print(mainTimer,BIN);
+  Serial.print("\t\t");
+  Serial.print((char)coolDownFlag, HEX);
+  Serial.print("\t");
+  Serial.print((char)droppedFlag,HEX);
+  Serial.print("\t");
+  Serial.print((char)liftedFlag, HEX);
+  Serial.print("\t");
+  Serial.print(holdTimer);
+  Serial.print("\t");
+  Serial.print(pressure[0], DEC);
+  Serial.print("\t");
+  Serial.print(coolDownTimer);
+  Serial.print("\t");
+  Serial.print(stroke, DEC);
+  Serial.print("\t");
+*/
+}

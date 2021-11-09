@@ -1,0 +1,167 @@
+/*
+chagne in Tactor cpp the Serial2 to Serial
+
+expected behaviour:
+
+1- internal LED flashing light
+2- sending through serial0 [ 0x01,0x80,0x4A,0x01 ]
+3- if the tactor board is connected [Serial2], vibrate every 1 second.
+*/
+#include<Tactor.h>
+ 
+
+void setup()
+{
+pinMode(LED_BUILTIN, OUTPUT);
+
+}
+// start a tactor object
+Tactor tactor;
+
+void loop(){
+digitalWrite(LED_BUILTIN, LOW);
+tactor.sendCommand('vibrate');
+delay(500);
+digitalWrite(LED_BUILTIN,HIGH);
+delay(500);
+}
+*/
+
+/* test FIFO vector append
+Serial.print("I am here: \t ");
+    Serial.println(fifo.FIFOsize);
+    Serial.print("and I see this ... : \t ");
+    for (int i = 0; i < fifo.maxFIFOsize; i++){
+            Serial.write(fifo.vector[i]);
+            Serial.print("\t");
+    }
+    Serial.println("");
+    while(Serial.available()==0)
+    {
+    }
+    fifo.append(serial.read());
+    delay(1000);
+    Serial.println(fifo.last());
+
+*/
+
+
+/* test FIFO isEqual function
+
+Serial.print("I am here: \t ");
+    Serial.println(fifo.FIFOsize);
+    Serial.print("and I see this ... : \t ");
+    for (int i = 0; i < fifo.maxFIFOsize; i++){
+            Serial.write(fifo.vector[i]);
+            Serial.print("\t");
+    }
+    Serial.println("");
+    while(Serial.available()==0)
+    {
+    }
+    fifo.append(100);
+    delay(1000);
+    if(fifo.isEqual(100)){
+        Serial.println("Equal");
+    }
+
+
+*/
+
+/*
+test communication with Mia 
+
+/* expected behaviour:
+
+1- internal LED flashing light
+2- sending through serial0 [ 0x01,0x80,0x4A,0x01 ]
+3- if the tactor board is connected, vibrate every 1 second.
+*/
+#include <arduino.h>
+#include <Tactor.h>
+#include <Mia.h>
+#include <FIFO.h>
+#include <TRFB.h>
+
+void setup()
+{
+pinMode(LED_BUILTIN, OUTPUT);
+Serial.begin(115200);
+}
+
+// start a tactor object
+Tactor tactor;
+// start a FIFO object
+FIFO fifo;
+// start Mia object
+Mia mia;
+// start
+
+char x [3] = {99, 99, 99};
+void loop(){
+    mia.read();
+    if (Serial.available()){
+    char i = 0;
+    x[0] = 0; // case
+    x[1] = 0; // number of reptitions
+    while (Serial.available())
+    {
+      x[i] = Serial.read();
+      i++;
+      if (i == 2){
+        break;
+      }
+    }
+
+    if (i == 2){ // only if what is read was 3 bytes
+    for( char j = 0; j < x[1];j++){
+      switch (x[0]){
+        
+        case 0:
+        Serial.print(pressure[0]);
+        Serial.print("\t");
+        Serial.print(pressure[1]);
+        Serial.print("\t");
+        Serial.println(pressure[2]);
+        break;
+        
+
+        case 1:
+        for (char ix = 0; ix < 6; ix++){
+          Serial.print(mia.Forces[ix]);
+          Serial.print("\t");
+        }
+        Serial.println(" ");
+        break;
+
+
+        case 3: //send what is read from the hand
+        for(char ix = 0; ix < 85; ix++){
+        Serial.write(mia.MiaBytes[ix]);
+        }
+        Serial.println("");
+        break;
+
+        /*
+        case 8:
+        Serial2.print(msgg1);
+        Serial.print(msgg1);
+        break;
+
+
+        case 9:
+        Serial2.print(msgg0);
+        Serial.print(msgg0);
+        break;
+        */
+
+        
+      }
+    }
+  }
+  } 
+}
+
+*/
+
+

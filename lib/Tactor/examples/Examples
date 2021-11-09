@@ -1,0 +1,17 @@
+// write the command setp
+
+// 00 - include the tactor library and delcare the tactor object outside the main loop
+#include<Tactor.h>
+Tactor tactor1
+
+// 01- send command using method writeTactor
+tactor1.writeTactor('setp')
+
+// 02 - send command with parameters set positions for example
+char params[3]={0x01, 0x02, 0x03}
+tactor1.writTactor('setp',params)
+
+// 03 - send custom command
+char cmd[5]= {0x0A, 0x0B, 0x0C, 0x0D,0x0E};
+tactor1.writTactor(cmd,params, 5)
+where 5 is number of bytes in cmd
