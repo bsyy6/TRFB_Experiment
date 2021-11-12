@@ -60,13 +60,7 @@ bool y =0;
 char result =0;
 void loop(){
   Serial2.println("started!");
-  result = mia.fullCalibrate();
-  Serial2.print("main fullcalibrate command response:   ");
-  Serial2.print((int) result);
-  if (result ==1){
-    digitalWrite(LED_BUILTIN,HIGH);
-  }
-  delay(30000);
+
 }
     //mia.read();
     // to-do debug mia communication.

@@ -22,11 +22,12 @@ class Mia
     unsigned char _bfr[_totalLength - _startFlagLength] = {0};  // total length - start flag length
     unsigned char _MiaBytesCopy[_totalLength];
     int multipliers[5] = {10000, 1000, 100, 10, 1};
+    unsigned char buf[100]; //buffer for any data recieved from Mia.
     
   public:
     Mia();
     char write(char cmdName[], int nBytes);
-    char write2(char cmdName[], int nBytes);
+    char readMiaBuf( unsigned char *buf, int lenBuf, unsigned char *Flag, int FlagCount );
     char fullCalibrate();
     void stopStream();
     void startStream();

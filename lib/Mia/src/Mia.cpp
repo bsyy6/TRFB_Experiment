@@ -27,220 +27,76 @@ Mia::Mia()
 
 // methods
 
-// write to tactors a cutom command
-
+// write to Mia a cutom command
 char Mia::write(char cmdName[], int nBytes)
 {
 
-  // warning: this function blocks the execution of main loop and waits for confirmation  from mia
-  //          or timeOut time to pass.
-  //          THIS CODE IS *NOT* to be used in time critical scenarios.
-
-  int counter = 0;
-  int maxCounter = nBytes + 2; // I will give it nbytes +1 tries to to get the message
-  char x = 0;
-  char temp = 0;
-  unsigned long time = micros() - 1; // overall time of the function
-  int timeout = false;
-  int timeoutCounter = 0;
-  char dump = 0;
-
-  // [00] clear serial buffer
-  // send stop all serial stream command
-  Serial1.write("@Ad0000000000000*\r", 18);
-  while (Serial1.available() == 0 && !timeout)
-  {
-    timeout = ((micros() - time) > 2000); // waits for hand response.
-    if (timeout)
-    {
-      Serial2.println("1st while timedout!");
-      return 0;
-    }
-  }
-
-  // first stop all incoming data streams from the hand
-  while (Serial1.available() && !timeout)
-  {
-    timeout = ((micros() - time) > 2000);
-    dump = Serial1.read();
-    //hand is not stopping the streaming, quit write.
-    if (timeout)
-    {
-      Serial2.println("1st while timedout!");
-      return 0;
-    }
-  }
-
-  // stopped streaming .. send command
-  Serial1.write(cmdName, nBytes);
-
-  time = micros() - 10; //update time
-  unsigned long deltaTime = micros() - time;
-
-  while ((Serial1.available() == 0) && !timeout)
-  {
-    deltaTime = micros() - time;
-    timeout = (deltaTime > 10000UL); // @ 115200 baud rate a byte shouldn't take more than 10 microsecond, we will give it 50.
-  }
-
-  if (timeout)
-  {
-    Serial2.println("timeout_1: sent command and dind't get response.");
-    Serial2.println(deltaTime);
-    return 0;
-  }
-
-  while (!timeout && (counter < maxCounter))
-  {
-
-    Serial2.print("in to first while \r");
-    // force wait for each byte
-    while (Serial1.available() == 0 && !timeout)
-    {
-      timeout = ((micros() - time) > 100);
-      if (timeout)
-      {
-        Serial2.print("timeout_2! \r");
-        return 0;
-      }
-    }
-
-    // check first byte
-    if (Serial1.read() == 0x3C)
-    {
-      counter = counter + 1;
-      x = 1;
-      for (int i = 1; i < nBytes; i++)
-      {
-        while (Serial1.available() == 0 && !timeout)
-        {
-          timeout = ((micros() - time) > 50000); // 18 bytes should take about 180 Micros + 50Micros bytes for the first byte, we will give this 250 microsecond
-        }
-        if (timeout)
-        {
-          Serial2.print((int)(micros() - time));
-          Serial2.print("timeout line 110");
-          return 0;
-        }
-        temp = Serial1.read();
-        if (temp == cmdName[i])
-        {
-          x = x + 1;
-        }
-        if (temp == 0x3C)
-        {
-          i = 0;
-          x = 1;
-          counter = counter + 1;
-        }
-      }
-    }
-    else
-    {                                       // what is recieved was not "<"
-      timeout = ((micros() - time) > 2000); // this part of code should not take more than 2 msec
-      counter = counter + 1;
-      Serial2.print("got ");
-      Serial2.print((int)temp);
-      Serial2.print("instead of ");
-      Serial2.println(0x3C);
-    }
-
-    if (x == nBytes - 2)
-    { // last byte is not equal to message
-      Serial2.print("correct message");
-      return 1; // succesful transmission and confimraiton
-    }
-  }
-  //Serial2.write(x);
-  return 0;
-}
-
-char Mia::write2(char cmdName[], int nBytes)
-{
-
   // basic send command directly and get if Mia sends back confirmation only.
-
-  int counter = 0;
-  int maxCounter = 50; // I will give it nbytes +1 tries to to get the message
   char x = 0;
-  char temp = 0;
   unsigned long time = micros() - 1; // overall time of the function
+  unsigned long timeLocal;
   int timeout = false;
-  char bytex;
-  Serial1.write(cmdName, nBytes);
+  char thisByte;
 
+  Serial1.write(cmdName, nBytes);
   time = micros() - 10; //update time
 
   // wait for hand response to start (if not started yet)
   while (Serial1.available() == 0 && !timeout)
   {
-    timeout = ((micros() - time) > 5000UL);
-  }
-  if (timeout)
-  {
-    Serial2.println("timeout waiting for hand response");
-  }
-
-  // skim through the stream looking for the first "<"
-  while (!timeout && (counter < maxCounter))
-  {
-
-    // enforce wait for each byte
-    while (Serial1.available() == 0 && !timeout)
+    timeout = ((micros() - time) > 2000UL);
+    if (timeout)
     {
-      timeout = ((micros() - time) > 100);
-    }
-
-    bytex = Serial1.read();
-    // check first byte
-    if (bytex == 0x3C)
-    {
-      counter = counter + 1;
-      x = 1;
-      // read the rest of response
-      for (int i = 1; i < nBytes; i++)
-      {
-        while (Serial1.available() == 0 && !timeout)
-        {
-          timeout = ((micros() - time) > 50000); // 18 bytes should take about 180 Micros + 50Micros bytes for the first byte, we will give this 250 microsecond
-        }
-        if (timeout)
-        {
-          return 0;
-        }
-
-        bytex = Serial1.read();
-        if (bytex == cmdName[i])
-        {
-          x = x + 1;
-        }
-        if (bytex == 0x3C)
-        {
-          i = 0;
-          x = 1;
-          counter = counter + 1;
-        }
-      }
-    }
-    else
-    { 
-      Serial2.print((int)bytex, HEX);                                      // what is recieved was not "<"
-      timeout = ((micros() - time) > 2000); // this part of code should not take more than 2 msec
-      counter = counter + 1;
-    }
-    // a flag is recieved correctly.
-    if (x == nBytes - 2)
-    {           // last byte is not equal to message
-      return 1; // succesful transmission and confimraiton
+      Serial2.println("timeout waiting for hand response");
+      return 0;
     }
   }
-  Serial2.print("Failed counter -> ");
-  Serial2.print((int) counter);
-  Serial2.print(" time out -> ");
-  Serial2.print((int) timeout);
-  Serial2.print (" ");
-  Serial2.println(cmdName);
-  return 0;
+
+  timeLocal = micros() - 100;
+  //simple code searching for response within timelimit
+  while (Serial1.read() != 0x3C && !timeout)
+  {
+    timeout = (micros() - timeLocal > 12000); // enough time for 115 bytes to check
+    if (timeout)
+    {
+      Serial2.println("no confirmation");
+      return 0;
+    }
+  }
+
+  timeLocal = micros() - 100;
+  //received first part, check the rest
+  while ((Serial1.available() < (nBytes - 2)) && !timeout)
+  {
+    timeout = ((micros() - timeLocal) > 2000);
+    // filling the buffer 2000 because I am not expecting more than 20 bytes.
+    if (timeout)
+    {
+      Serial2.print(Serial1.available());
+      Serial2.println(" no confimation 2");
+      return 0;
+    }
+  }
+
+  // read the rest of response
+  for (int i = 1; i < nBytes; i++)
+  {
+    thisByte = Serial1.read();
+    if (thisByte == cmdName[i])
+    {
+      x = x + 1;
+    }
+  }
+
+  // check if the flag is recieved correctly.
+  if (x == nBytes - 3) // expecting first charecter wrong and the last two too.
+  {
+    return 1; // succesful transmission and confimraiton
+  }
+  else
+  {
+    return 0;
+  }
 }
 
 char Mia::fullCalibrate()
@@ -249,94 +105,113 @@ char Mia::fullCalibrate()
   // no stop all command yet [12-10-2021]
   // calibrate command
   char commandResp = 0;
-  char dump = 0;
-  commandResp = write2("@AK0000000000000*\r", 18);
+  int temp;
+  commandResp = write((char *)"@AK0000000000000*\r", 18);
 
-  // hand keeps sendind data while it is calibrating ... use that to block the code and wait
+  // hand keeps sending data while it is calibrating ... use that to block the code and wait
+  unsigned char startFlag[5] = {0x73, 0x74, 0x61, 0x20, 0x3a};
+  int startFlagCount = 5;
+  char bufIsUpdated = 1;
+
+  while (bufIsUpdated)
+  {
+    bufIsUpdated = readMiaBuf(buf, 100, startFlag, startFlagCount);
+    if (bufIsUpdated && buf[33] == 0x2D) //* "-" sign
+    {
+      return 0; // calibration was interrupted
+    }
+  }
+
+  while (Serial1.available())
+  {
+    temp = Serial1.read();
+  }
+
+  // it will then stop sending data ... because why not.
+  commandResp = write((char *)"@ADI100000000000*\r", 18);
 
   if (commandResp == 1)
-  { // if mia got the calibration command
-    while (Serial1.available() < 50)
-    {
-    }
-  }else{
-    Serial2.write( "not sent correctly.");
-    delay(5000);
-  }
-
-  long time1 = micros();
-  char wait = true;
-
-  while (Serial1.available() > 0 || wait) // wait for Mia to finish calibration
-  {                        
-    dump = Serial1.read(); // no flush command from Arduino :(
-    wait = (micros() - time1) < 1000;
-  }
-
-  bool handReady = false;
-  
-  while (!handReady)
   {
-    commandResp = write2("@ADI100000000000*\r", 18);
-    // get status of hand
-    if (commandResp == 1)
-    {
-      // infinite for until startFlag sequence is detected
-      int j = 0;
-      char startFlag[5] = {0x73, 0x74, 0x61, 0x20, 0x3a};
-      static unsigned char thsByte;
-
-      // fill buffer first
-      while (Serial1.available() < 50)
+    bufIsUpdated = readMiaBuf(buf, 100, startFlag, startFlagCount);
+    if (bufIsUpdated && buf[34] == 0x2B && buf[35] == 0x30)
+    { //*+00
+      commandResp = 0;
+      commandResp = write((char *)"@ADI000000000000*\r", 18);
+      if (commandResp)
       {
-      }
-
-      wait = true;
-      for (j = 0; j <= 4; j++)
-      {
-        // this part enforces that the program waits for the bytes
-        if (Serial1.available() < 5 - j + 1)
-        {
-          time1 = micros() - 100;
-          while (Serial1.available() < 50 && wait)
-          {
-            wait = ((micros() - time1) < 10000);
-          }
-        }
-
-        thsByte = Serial1.read();
-        if (thsByte != startFlag[j])
-        {
-          j = -1;
-          // since it is wrong, check if it is the start of new message ?
-          if (thsByte == startFlag[0])
-          {
-            j = 0;
-          }
-        }
-      }
-    }
-    // read all the empty bytes
-    char bfr[46] = {0};
-    Serial1.readBytes(bfr,46);
-    if (bfr[45] == 0x0A)
-    {
-      if (bfr[33] == 0x2B && bfr[34] == 0x30 && bfr[35] == 0x30)//*+00
-      {           
-        return 1; // calibration was succeful
+        return 1; // completed succefully
       }
     }
   }
-  return 0;
+  return 99;
 }
 
-// void Mia::startStream(){
-//   write("@ADA100000000000*\r",18);
-// }
+char Mia::readMiaBuf(unsigned char *buf, int lenBuf, unsigned char *Flag, int FlagCount)
+{
+  // This function looks for a flag in stream ( infinite loop until it finds it)
 
-// void Mia::stopStream(){
-//   write("@ADA000000000000*\r",18);
-// }
+  bool handStopped = false;
+
+  int j = 0;
+  unsigned char thsByte;
+  long time1;
+
+  while (!handStopped)
+  {
+    // infinite loop until startFlag sequence is detected
+    for (j = 0; j <= 4; j++)
+    {
+      // this part enforces that the program waits for the bytes
+      if (Serial1.available() < FlagCount - j + 1)
+      {
+        time1 = micros() - 100;
+        while (Serial1.available() < FlagCount - j && !handStopped)
+        {
+          handStopped = ((micros() - time1) > 10000);
+        }
+      }
+
+      thsByte = Serial1.read();
+      if (thsByte != Flag[j] && !handStopped)
+      {
+        j = -1;
+        // since it is wrong, check if it is the start of new message ?
+        if (thsByte == Flag[0])
+        {
+          j = 0;
+        }
+      }
+    }
+
+    // flush the buffer
+    for (int i = 0; i < 100; i++)
+    {
+      buf[i] = 0;
+    }
+
+    // read all the bytes and put them in buf.
+    if (!handStopped)
+    {
+      Serial1.readBytes(buf, lenBuf);
+      return 1;
+    }
+    else
+    {
+      return 0;
+    }
+  }
+  return 99;
+}
+
+void Mia::startStream()
+{
+  write("@ADA100000000000*\r", 18);
+}
+
+void Mia::stopStream()
+{
+  write("@ADA000000000000*\r", 18);
+}
 
 // void Mia::read()
 // {
