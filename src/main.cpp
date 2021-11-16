@@ -12,11 +12,11 @@
 
 void setup()
 {
-pinMode(LED_BUILTIN, OUTPUT);
-// Serial2 is used for debugging.
-Serial2.begin(115200);
-//Serial2.begin(115200);
-/*
+  pinMode(LED_BUILTIN, OUTPUT);
+  // Serial2 is used for debugging.
+  Serial2.begin(115200);
+  //Serial2.begin(115200);
+  /*
 noInter rupts();
 // ISR 
 TCCR1A = 0; 
@@ -28,9 +28,9 @@ TCCR1B  |= (1 << CS10);    // 1 PRESCALE
 TIMSK 1 |= (1 << TOIE1); // Timeroverflow enable
 TCNT 1 = 49536;
 int errupts();
-*/ 
-} 
- 
+*/
+}
+
 // star  t a tactor object
 //Tactor  tactor;
 // st art a FIFO object
@@ -38,9 +38,10 @@ int errupts();
 //  start Mia object
 Mia mia;
 // start
- 
-// ISR 
-ISR(TIMER1_OVF_vect) { // EVERY 10 msec
+
+// ISR
+ISR(TIMER1_OVF_vect)
+{ // EVERY 10 msec
   /*  if (TRFB.state == 2){
     if (t <= fadeTime){
     t += 1;  
@@ -55,14 +56,26 @@ ISR(TIMER1_OVF_vect) { // EVERY 10 msec
   TCNT1 = 49536;*/
 }
 
-bool x =0;
-bool y =0;
-char result =0;
-void loop(){
-  Serial2.println("started!");
+bool x2 = 0;
+char y = 0;
+char result = 0;
 
+unsigned char bufx[100]; //initilaize a buffer
+unsigned char flagx[6] =  {0x61, 0x64, 0x63, 0x20, 0x3A, 0x20}; // Flag
+unsigned char endFlag[1] = {0x0A};
+void loop()
+{
+  //result = mia.fullCalibrate();
+  if(result == 0){
+    mia.startStream();
+  }
+  while(true){
+    y = mia.readMiaBuf(bufx, 85, flagx, 6, endFlag,1);
+    //Serial2.write(bufx,85);
+    Serial2.println("");
+  }
 }
-    //mia.read();
-    // to-do debug mia communication.
-    // to-do libraray to save data.
-    // to-do talk with workshop downstairs.
+//mia.read();
+// to-do debug mia communication.
+// to-do libraray to save data.
+// to-do talk with workshop downstairs.
