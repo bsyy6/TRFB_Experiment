@@ -212,8 +212,8 @@ char Mia::readMiaBuf(unsigned char *buf, int lenBuf, unsigned char *Flag, int Fl
   while(Serial1.available() < lenBuf-FlagCount){
     // waits for the bytes to arrive
   }
-  
-  Serial1.readBytes(temp,lenBuf-FlagCount);
+   
+  Serial1.readBytes(temp,(lenBuf-FlagCount));
   Serial2.write(temp,lenBuf-FlagCount);
   for (int i = lenBuf - 1; i > lenBuf - endFlagCount - 1; i--)
   {

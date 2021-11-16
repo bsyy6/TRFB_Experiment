@@ -68,11 +68,12 @@ void loop()
   //result = mia.fullCalibrate();
   if(result == 0){
     mia.startStream();
+
   }
   while(true){
     y = mia.readMiaBuf(bufx, 85, flagx, 6, endFlag,1);
     //Serial2.write(bufx,85);
-    Serial2.println("");
+    Serial2.println(SERIAL_RX_BUFFER_SIZE);
   }
 }
 //mia.read();
