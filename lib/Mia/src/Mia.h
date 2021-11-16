@@ -28,9 +28,13 @@ class Mia
     Mia();
     char write(char cmdName[], int nBytes);
     char readMiaBuf( unsigned char *buf, int lenBuf, unsigned char *Flag, int FlagCount, unsigned char* endFlag, int endFlagCount );
+    char readMiaForces(unsigned char *buf , int *Forces);
     char fullCalibrate();
     void stopStream();
-  void startStream();
+    void startStream();
+    int stream_count = 0;
+    int stream_count_old = 0;
+    int forces[6] = {0, 0, 0, 0, 0, 0} ;
     unsigned char* setMiaBytes(); // not used
     void read();
     void stop(); // not used

@@ -72,8 +72,17 @@ void loop()
   }
   while(true){
     y = mia.readMiaBuf(bufx, 85, flagx, 6, endFlag,1);
-    //Serial2.write(bufx,85);
-    Serial2.println(SERIAL_RX_BUFFER_SIZE);
+    //Serial2.write(mia.Forces[3]);
+    y = mia.readMiaForces(bufx, mia.Forces);
+    if( y == 1){
+      Serial2.print(mia.stream_count);
+      Serial2.print(" -> ");
+      for (int i = 0 ; i<8; i++){  
+        Serial2.print(mia.Forces[i]);
+        Serial2.print(" ; ");
+      }
+      Serial2.println("");
+    }
   }
 }
 //mia.read();
