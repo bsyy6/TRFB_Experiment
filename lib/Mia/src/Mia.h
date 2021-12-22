@@ -11,35 +11,49 @@
 
 class Mia
 {
-  private:
+private:
+  //char _startFlag[_startFlagLength] = {0x61, 0x64, 0x63, 0x20, 0x3A, 0x20}; // start flag of package 'adc : '
+  //char _endFlag[_endFlagLength] = {0x0A};
+  //unsigned char _lenMsg = _totalLength - _startFlagLength - _endFlagLength;
+  //unsigned char _bfr[_totalLength - _startFlagLength] = {0};  // total length - start flag length
+  //unsigned char _MiaBytesCopy[_totalLength];
+  int multipliers[5] = {10000, 1000, 100, 10, 1};
+  int lenBuf = 100;
 
-    static const unsigned char _totalLength = 85; // total length of message (including start and end flags)
-    static const unsigned char _startFlagLength = 6;
-    static const unsigned char _endFlagLength = 1;
-    char _startFlag[_startFlagLength] = {0x61, 0x64, 0x63, 0x20, 0x3A, 0x20}; // start flag of package 'adc : ' 
-    char _endFlag[_endFlagLength] = {0x0A};                                 
-    unsigned char _lenMsg = _totalLength - _startFlagLength - _endFlagLength; 
-    unsigned char _bfr[_totalLength - _startFlagLength] = {0};  // total length - start flag length
-    unsigned char _MiaBytesCopy[_totalLength];
-    int multipliers[5] = {10000, 1000, 100, 10, 1};
-    unsigned char buf[100]; //buffer for any data recieved from Mia.
-    
-  public:
-    Mia();
-    char write(char cmdName[], int nBytes);
-    char readMiaBuf( unsigned char *buf, int lenBuf, unsigned char *Flag, int FlagCount, unsigned char* endFlag, int endFlagCount );
-    char readMiaForces(unsigned char *buf , int *Forces);
-    char fullCalibrate();
-    void stopStream();
-    void startStream();
-    int stream_count = 0;
-    int stream_count_old = 0;
-    int forces[6] = {0, 0, 0, 0, 0, 0} ;
-    unsigned char* setMiaBytes(); // not used
-    void read();
-    void stop(); // not used
-    char MiaBytes[_totalLength] = {0};
-    int Forces [8] = {};
+public:
+  Mia();
+  char write(char cmdName[], int nBytes);
+  char readMiaBuf(int lenMsg,unsigned char *Flag, int FlagCount, unsigned char *endFlag, int endFlagCount);
+  char readMiaForces();
+  char fullCalibrate();
+  char fullCalibrateAndBias();
+  char stopStream();
+  char startStream();
+  char BiasForces();
+  char scale2byte(int value, int max, int min);
+  void setState();
+  char readMiaForcesBiased();
+  int stream_count = 0;
+  int stream_count_old = 0;
+  unsigned char *setMiaBytes(); // not used
+  void read();
+  void stop();                                 // not used
+  unsigned char buf[100];                      //buffer for any data recieved from Mia.
+  int Forces[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0}; // last Byte is semaphore flag
+  int state = 0; // hand state, vibrate each time it changes controlledd by setState.
+  int oldState = 0;
+  int BiasVector[9] =    {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  int ForcesBiased[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+  void echo();
+  // easier code to read
+  char Biased = 0; // true if forces bias was calculated
+  char stateChanged = 0; 
+  int processed = 1; // true if this reading was processed and can be flushed (semaphore), no data is read from the hand if this is false.
+  int indxN = 1; // index Normal force
+  int indxT = 2; // index tangantial force
+  int thmbT = 3; // thumb tangantial force
+  int thmbN = 4; // thumb normal force
+  
 };
 
 #endif

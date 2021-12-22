@@ -15,6 +15,7 @@ void setup()
   pinMode(LED_BUILTIN, OUTPUT);
   // Serial2 is used for debugging.
   Serial2.begin(115200);
+  Serial.begin(115200);
   //Serial2.begin(115200);
   /*
 noInter rupts();
@@ -32,7 +33,7 @@ int errupts();
 }
 
 // star  t a tactor object
-//Tactor  tactor;
+Tactor tactor;
 // st art a FIFO object
 //FIFO  fifo;
 //  start Mia object
@@ -56,36 +57,119 @@ ISR(TIMER1_OVF_vect)
   TCNT1 = 49536;*/
 }
 
+/*
+#define CMDBUFFER_SIZE 32
+
+char processCharInput(char *cmdBuffer, const char c)
+{
+  //Store the character in the input buffer
+  if (c >= 32 && c <= 126) //Ignore control characters and special ascii characters
+  {
+    if (strlen(cmdBuffer) < CMDBUFFER_SIZE)
+    {
+      strncat(cmdBuffer, &c, 1); //Add it to the buffer
+    }
+    else
+    {
+      return '\n';
+    }
+  }
+  else if ((c == 8 || c == 127) && cmdBuffer[0] != 0) //Backspace
+  {
+
+    cmdBuffer[strlen(cmdBuffer) - 1] = 0;
+  }
+  return c;
+}
+
+void serialEvent()
+{
+  static char cmdBuffer[CMDBUFFER_SIZE] = "";
+  char c;
+  while (Serial.available())
+  {
+    c = processCharInput(cmdBuffer, Serial2.read());
+    Serial2.print(c);
+    if (c == '\n')
+    {
+      Serial.println();
+      //Full command received. Do your stuff here!
+      if (strcmp("test", cmdBuffer) == 0)
+      {
+        Serial.println("\ntest works!");
+      }
+      if(strcmp("state",cmdBuffer) == 0){
+        Serial.println(mia.state);
+      }
+      if(strcmp("biased",cmdBuffer) == 0){
+        for (int i = 0; i < 9; i++)
+        {
+          Serial.print(mia.ForcesBiased[i]);
+          Serial.print("\t");
+        }
+        Serial.println("");
+      }
+      cmdBuffer[0] = 0;
+    }
+  }
+  delay(1000);
+}*/
+
 bool x2 = 0;
 char y = 0;
 char result = 0;
+int var = 0xF0FF;
 
-unsigned char bufx[100]; //initilaize a buffer
-unsigned char flagx[6] =  {0x61, 0x64, 0x63, 0x20, 0x3A, 0x20}; // Flag
+unsigned char startFlag[6] = {0x61, 0x64, 0x63, 0x20, 0x3a, 0x20}; // 'adc : '
 unsigned char endFlag[1] = {0x0A};
+char result2 = 0;
+int resulttt[2];
+
 void loop()
 {
-  //result = mia.fullCalibrate();
-  if(result == 0){
-    mia.startStream();
-
+  if (mia.startStream() == 1)
+  {
+    Serial.println("started");
+    mia.Biased = mia.fullCalibrateAndBias();
+    result2 = 1;
   }
-  while(true){
-    y = mia.readMiaBuf(bufx, 85, flagx, 6, endFlag,1);
-    //Serial2.write(mia.Forces[3]);
-    y = mia.readMiaForces(bufx, mia.Forces);
-    if( y == 1){
-      Serial2.print(mia.stream_count);
-      Serial2.print(" -> ");
-      for (int i = 0 ; i<8; i++){  
-        Serial2.print(mia.Forces[i]);
-        Serial2.print(" ; ");
-      }
-      Serial2.println("");
+
+  if (mia.readMiaForcesBiased())
+  {
+    mia.setState();
+    //Serial.println((int)mia.state);
+    if (mia.stateChanged)
+    {
+      /*for (int i = 0; i < 9; i++)
+        {
+          Serial2.print(mia.Forces[i]);
+          Serial2.print("\t");
+        }
+        Serial2.println("");
+        for (int i = 0; i < 9; i++)
+        {
+          Serial2.print(mia.BiasVector[i]);
+          Serial2.print("\t");
+        }
+        Serial2.println("");
+        /*
+       for (int i = 0; i < 9; i++)
+        {
+          Serial.print(mia.ForcesBiased[i]);
+          Serial.print("\t");
+        }*/
     }
+
+    Serial.print(mia.ForcesBiased[1]);
+    Serial.print("\t");
+    Serial.print(mia.ForcesBiased[2]);
+    Serial.print("\t");
+    Serial.println((int)mia.state);
+    mia.processed = 1;
   }
 }
+
 //mia.read();
-// to-do debug mia communication.
-// to-do libraray to save data.
-// to-do talk with workshop downstairs.
+// to-do debug mia communication. -> done.
+// to-do libraray to save data. -> online.
+// to-do talk with workshop downstairs. -> done.

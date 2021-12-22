@@ -31,7 +31,7 @@ class FIFO
 
 
   private:
-   // nothing.
+   // look up table for stroke positions
 
 };
 
