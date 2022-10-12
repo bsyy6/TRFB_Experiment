@@ -142,6 +142,8 @@ void loop()
 { 
   // start-up routines
   // pressing the button makes it start ..
+
+  /* check if the tactor board is live, if not turn off the serial */
   tactor.getStatus();
   delay(100);
   if(Serial1.available() == 0){
@@ -152,6 +154,8 @@ void loop()
     }
   }
 
+
+  // start up button or s
   while(Serial.read() != 's' &&  btnCount[btnStp-4] == 0)
   {
     digitalWrite(YEL,HIGH);
@@ -163,22 +167,22 @@ void loop()
     debounceButton(btnStp);
   }
   
-  if(!Serial1){
-  Serial1.begin(115200);
-  }
-  digitalWrite(LED_BUILTIN,LOW);
   
+  if(!Serial1) Serial1.begin(115200);
+  
+  digitalWrite(LED_BUILTIN,LOW);
+
+  // start-up routine
   if(!strt)
   {
-    // move the motor
-    cube.biasCalculate(1, intFlag);
-    tactor.Start();
+    cube.biasCalculate(1, intFlag); //bias the force sensor 
+    tactor.Start(); // pulls the motor down    
     count = count_old;
     timeFromLastIncrement = millis();
     strt = 1;
   }
   
-  // signal it is done ... 
+  // signal it is done ... with lights
   for ( int i = 0 ; i<4; i++){
     delay(250);
     digitalWrite(LED_BUILTIN,HIGH);
@@ -193,13 +197,16 @@ void loop()
   intFlag = false;
   started = true;
   bool down = false;
-  btnCount[btnStp] == 0;
+  btnCount[btnStp] = 0;
+
   // flush out serial
   while(Serial1.available()){
     debugvar =  Serial1.read();
   }
 
   digitalWrite(LED_BUILTIN,HIGH);
+
+  // this is the while(1)
   while(TimeOutErr == false){
     if(intFlag){
 
@@ -207,7 +214,8 @@ void loop()
       u = !u;
       
       // routine for PID
-      /*if(calPIDgaines){
+      /*
+      if(calPIDgaines){
         if(time < timeLimit){
           if(tactor.commandSent){
             // increment the timer
@@ -234,10 +242,10 @@ void loop()
         }
       }
       */
-      
-
 
       // scheme for experiment!
+      // [1] check which experiment we have
+      
       if(count < 6 ){
         FB.fb_type = 1;
       }
@@ -261,26 +269,25 @@ void loop()
       if(count > 100){
         FB.fb_type = 0;
       }
-      //end of scheme
-
+      // [2] read force from sensorized object
       cube.write2Fifo();
-      // it was cub.fifoL.last()
       if(!(cube.fifoL.isEqual2(cube.fifoL.last()))){
         PosCmd = cube.fifoL.last();
       }
-
-      err = (cube.fifoF.last() - FrsCmd)/2;
-      tactor.setPWM((err>0),abs(err));
-      // Serial.println(abs(err));
-      //FB.trfb(cube.fifoL, cube.fifoR, cube.fifoT, PosCmd, tactor);
+      // [3] move motor
+      FB.trfb(cube.fifoL, cube.fifoR, cube.fifoT, PosCmd, tactor);
       
-
+      // force control idea ...  ( not used now 12/10/2022)
+      //err = (cube.fifoF.last() - FrsCmd)/2;
+      //tactor.setPWM((err>0),abs(err));      
+      
+      // [4] red for broken box
       if((cube.fifoL.last()>cubeLimit)){
         digitalWrite(RED,HIGH);
         err_flag = 1;
       }
       
-      // tactor.getPosition(true); // waits for the response 
+     tactor.getPosition(false); // waits for the response 
      
      if(count_old < count){
       count_old = count;
@@ -301,9 +308,8 @@ void loop()
      pocketNum++;
 
      // logger 
-     //logData();
-     //Serial.println(PosCmd);
-     debounceButton(btnStp);
+     logData();
+    
      debounceButton(btnFil);
      debounceButton(btnRpt);
      //buttons pull
@@ -334,7 +340,7 @@ void loop()
     }
   }
 
-  //timeOutError! a cycle took longer than 10 msec
+  //timeOutError! a cycle took longer than 10 msec // blocks everything
   Serial.println("<-- TimeOutErr-->");
   while(1){
   digitalWrite(LED_BUILTIN,LOW);
@@ -344,58 +350,18 @@ void loop()
   }
 }
 
-
-int sat2zero(signed int x){
-  if(x<0){
-    return(0);
-  }
-  else
-  {
-   return((int)x);
-  }
-}
-
-void debounceInterrupt() {
- if((millis() - last_micros) > debouncing_time ) {
-      if(state){ // from low -> High
-      last_micros = millis();
-      state = digitalRead(interruptPin);
-      digitalWrite(BLU, LOW);
-      record = 1;
-      }
-      else
-      { // from high -> low
-      if((millis()- timeFromLastIncrement)>1000 && move_robots){
-      success = 0;
-      err_flag =0;
-      count++;
-      record = 0;
-      digitalWrite(RED, LOW);
-      digitalWrite(YEL, LOW);
-      digitalWrite(BLU, HIGH);
-      } 
-      last_micros = millis();
-      state = digitalRead(interruptPin);
-      }
-  }
-  else
-  {
-    state = digitalRead(interruptPin);
-  }
-}
-
+// communication loggin data
 void logData(){
   if(Serial.available()){
     switch (Serial.read())
     {
     case '1':
-      // Global Start recording
-      record = 1;
-      move_robots = 1;
+      // stop//start robots
+      move_robots = !move_robots;
       break;
     case '2':
-      // stop recording
-      record = 0;
+      // stop/start recording
+      record = !record;
       break;
     case '3':
       // repeat this trial
@@ -403,18 +369,9 @@ void logData(){
       count_old--;
       err_flag = 1;      // flag error 
       break;
-    case '4':
-      // stop robots
-      move_robots = 0;
-      record = 0;
-      break;
     case '5':
       // toggle on/off streaming
       stopStream = !stopStream; 
-    case '0':
-      // allow the robots to move
-      move_robots = 1;
-      break;
     case 'R':
       count = 0;
       move_robots = 0;
@@ -432,15 +389,8 @@ void logData(){
       Group = debugvar;
       count = 0;
       }
-    case 'k':
-      if(Serial.read()-48 == 0){
-      cubeLimit = cubeLimit-10;
-      }
-      else{
-        cubeLimit = cubeLimit+10;
-      }
-          
-  }
+      break;      
+    }
   }
   if(!stopStream){
   // general 
@@ -473,6 +423,39 @@ void logData(){
   Serial.print("\t");
   Serial.print(pocketNum);
   Serial.print("\n");
+  }
+}
+
+
+
+
+void debounceInterrupt() {
+ if((millis() - last_micros) > debouncing_time ) {
+      if(state){ // from low -> High
+      last_micros = millis();
+      state = digitalRead(interruptPin);
+      digitalWrite(BLU, LOW);
+      record = 1;
+
+      }
+      else
+      { // from high -> low
+      if((millis()- timeFromLastIncrement)>1000 && move_robots){
+      success = 0;
+      err_flag =0;
+      count++;
+      record = 0;
+      digitalWrite(RED, LOW);
+      digitalWrite(YEL, LOW);
+      digitalWrite(BLU, HIGH);
+      } 
+      last_micros = millis();
+      state = digitalRead(interruptPin);
+      }
+  }
+  else
+  {
+    state = digitalRead(interruptPin);
   }
 }
 
