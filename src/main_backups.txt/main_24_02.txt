@@ -1,0 +1,608 @@
+#include <Arduino.h>
+#include <Tactor.h>
+//#include <Mia.h>
+#include <FIFO.h>
+#include <TRFB.h>
+#include <logger.h>
+#include <sensorizedObj.h>
+
+void setup()
+{
+  pinMode(LED_BUILTIN, OUTPUT);
+  // Serial2 is used for debugging.
+  Serial.begin(115200);
+  noInterrupts();
+  // ISR
+  TCCR1A = 0;
+  TCCR1B = 0;
+  //OCR1A =   61;// OCR1A = 61 --> 1 kHz
+  //OCR1B  = 50;
+  // pre- scalers
+  TCCR1B |= (1 << CS10);  // 1 PRESCALE
+  TIMSK1 |= (1 << TOIE1); // Timeroverflow enable
+  TCNT1 = 49536;
+  interrupts();
+  Serial.print("L");
+  Serial.print(" ");
+  Serial.print("T");
+  Serial.print(" ");
+  Serial.println("T");
+}
+
+// start a tactor object
+Tactor tactor;
+// start a FIFO object
+FIFO fifoR, fifoL, fifoT; // right // left // Tangantial
+// start sensorized object
+sensorizedObj cube(A1, A2, A3);
+// start TRFB method
+TRFB FB;
+//LOGGER logD;
+
+// ISR
+volatile bool newData = false;
+volatile bool newState = false;
+volatile char tcks = 0;
+
+const long period = 20;
+bool started = false;
+long previousTime = 0;
+long currentTime = 0;
+unsigned int t = 0;
+int pos = 0;
+double summ[3] = {0};
+
+ISR(TIMER1_OVF_vect)
+{ // EVERY 1 msec
+  if (Serial1.available() >= 52 && !newData)
+  {
+    newData = true;
+    tcks = 0;
+  }
+  tcks++;
+  if (tcks == 10)
+  {
+    newState = true;
+    tcks = 0;
+  }
+  TCNT1 = 49536;
+}
+
+int sat2zero(int num)
+{
+  if (num > 0)
+  {
+    return (num);
+  }
+  else
+  {
+    return (0);
+  }
+}
+
+void biasCalculate(int Seconds)
+{
+  previousTime = millis();
+  while (millis() - previousTime < 3000)
+  {
+  }
+  // reset bias
+  cube.L_bias = 0;
+  cube.R_bias = 0;
+  cube.B_bias = 0;
+
+  int i = 0;
+  newState = false;
+  while (i < Seconds * 100)
+  {
+    if (newState)
+    {
+      cube.readForcesRaw();
+      summ[0] = summ[0] + cube.L[2];
+      summ[1] = summ[1] + cube.R[2];
+      summ[2] = summ[2] + cube.B[2];
+      i = i + 1;
+      newState = false;
+    }
+  }
+  cube.L_bias = round(summ[0] / i);
+  cube.R_bias = round(summ[1] / i);
+  cube.B_bias = round(summ[2] / i);
+  cube.calibrated = true;
+  newState = false;
+}
+
+int scale2byte(int value, int max, int min)
+{
+  // maps a range of numbers (max - min ) to (255-0) instead.
+  // Saturates if less or more to 0 or 255.
+  if (max - min >= 255)
+  {
+    if (value < min)
+    {
+      return 0;
+    }
+    if (value > max)
+    {
+      return 255;
+    }
+    //return ((int)round((value - min)*(255/(max - min))));
+    return((int)( (value - min) * ((double)255/(max - min)) ));
+  }
+  else
+  {
+    return value;
+  }
+}
+
+unsigned char buf[3]={0,0,0};
+unsigned int scale2int()
+{
+   Serial3.readBytes(buf,3);
+   return(
+   (unsigned int)
+   ((   (unsigned long) buf[0] << 16
+      | (unsigned long) buf[1] << 8
+      | (unsigned long) buf[2]      )/2)
+   );
+}
+
+
+void loop()
+{
+  if (!cube.calibrated)
+  {
+    biasCalculate(2);
+  }
+  else
+  {
+    // every loop
+    if (newState)
+    {
+      cube.read();
+      // update the fifos ...
+      fifoL.append(sat2zero(cube.L[2] - cube.L_bias));
+      fifoR.append(sat2zero(cube.R[2] - cube.R_bias));
+      if (cube.B[2] > cube.B_bias)
+      {
+        fifoT.append(0);
+      }
+      else
+      {
+        fifoT.append(sat2zero(abs(cube.B_bias - cube.B[2])));
+      }
+      FB.trfb(fifoL,fifoR,fifoT,scale2byte(fifoL.last(),300,0),tactor);
+      /*
+      Serial.print((fifoL.last()*37.32));
+      Serial.print(" ");
+      Serial.print((fifoR.last()*45.14));
+      Serial.print(" ");
+      Serial.println((fifoT.last()*37.91));
+      */
+      newState = false;
+    }
+  }
+  bool incre = true;
+  int i = 0;
+  while (1)
+  {
+  if(incre){
+    i+=1;
+    if ( i == 255){
+      incre = false;
+    }
+  }
+  else{
+    i-=1;
+    if(i == 0){
+      incre = true;
+    }
+  }
+  //tactor.setPosition(i);
+  //tactor.getStatus();
+  
+  // message updating position arrived
+  if(Serial3.available()>=3)
+  {
+  //Serial.print((int)Serial3.read(),BIN);
+  tactor.position = scale2int();
+  }
+  tactor.vibrate();
+  Serial.print(",");
+  Serial.print(i);
+  Serial.print(",");
+  Serial.println(tactor.position);
+  delay(200);
+  
+  tactor.getPosition();
+  }
+
+}
+
+//mia.read();
+// to-do debug mia communication. -> done.
+// to-do libraray to save data. -> online.
+// to-do talk with workshop downstairs. -> done.
+
+
+//*** 09-03-2022 ***//
+
+#include <Arduino.h>
+#include <Tactor.h>
+//#include <Mia.h>
+#include <FIFO.h>
+#include <TRFB.h>
+#include <logger.h>
+#include <sensorizedObj.h>
+
+void setup()
+{
+  pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(15,INPUT_PULLUP);
+  // Serial2 is used for debugging.
+  Serial.begin(115200);
+  while(!Serial){
+  
+  }
+  
+  noInterrupts();
+  // ISR
+  TCCR1A = 0;
+  TCCR1B = 0;
+  //OCR1A =   61;// OCR1A = 61 --> 1 kHz
+  //OCR1B  = 50;
+  // pre- scalers
+  TCCR1B |= (1 << CS10);  // 1 PRESCALE
+  TIMSK1 |= (1 << TOIE1); // Timeroverflow enable
+  TCNT1 = 49536;
+  interrupts();
+}
+
+// start a tactor object
+Tactor tactor;
+// start a FIFO object
+FIFO fifoR, fifoL, fifoT; // right // left // Tangantial
+// start sensorized object
+sensorizedObj cube(A1, A2, A3);
+// start TRFB method
+TRFB FB;
+//LOGGER logD;
+
+// ISR
+volatile bool newData = false;
+volatile bool newState = false;
+volatile char tcks = 0;
+
+const long period = 20;
+bool started = false;
+long previousTime = 0;
+long currentTime = 0;
+unsigned int t = 0;
+int pos = 0;
+double summ[3] = {0};
+
+ISR(TIMER1_OVF_vect)
+{ // EVERY 1 msec
+  if (Serial1.available() >= 52 && !newData)
+  {
+    newData = true;
+    tcks = 0;
+  }
+  tcks++;
+  if (tcks == 10)
+  {
+    newState = true;
+    tcks = 0;
+  }
+  TCNT1 = 49536;
+}
+
+int sat2zero(int num)
+{
+  if (num > 0)
+  {
+    return (num);
+  }
+  else
+  {
+    return (0);
+  }
+}
+
+void biasCalculate(int Seconds)
+{
+  previousTime = millis();
+  while (millis() - previousTime < 3000)
+  {
+  }
+  // reset bias
+  cube.L_bias = 0;
+  cube.R_bias = 0;
+  cube.B_bias = 0;
+
+  int i = 0;
+  newState = false;
+  while (i < Seconds * 100)
+  {
+    if (newState)
+    {
+      cube.readForcesRaw();
+      summ[0] = summ[0] + cube.L[2];
+      summ[1] = summ[1] + cube.R[2];
+      summ[2] = summ[2] + cube.B[2];
+      i = i + 1;
+      newState = false;
+    }
+  }
+  cube.L_bias = round(summ[0] / i);
+  cube.R_bias = round(summ[1] / i);
+  cube.B_bias = round(summ[2] / i);
+  cube.calibrated = true;
+  newState = false;
+}
+
+int scale2byte(int value, int max, int min)
+{
+  // maps a range of numbers (max - min ) to (255-0) instead.
+  // Saturates if less or more to 0 or 255.
+  if (max - min >= 255)
+  {
+    if (value < min)
+    {
+      return 0;
+    }
+    if (value > max)
+    {
+      return 255;
+    }
+    //return ((int)round((value - min)*(255/(max - min))));
+    return((int)( (value - min) * ((double)255/(max - min)) ));
+  }
+  else
+  {
+    return value;
+  }
+}
+
+unsigned char buf[3]={0,0,0};
+unsigned int scale2int()
+{
+   Serial3.readBytes(buf,3);
+   return(
+   (unsigned int)
+   ((   (unsigned long) buf[0] << 16
+      | (unsigned long) buf[1] << 8
+      | (unsigned long) buf[2]      )/2)
+   );
+}
+
+bool strt = false;
+int deg = 0x61;
+char deg2 = 0x05;
+void loop()
+{ 
+  while(!strt)
+  {
+    delay(1000);
+    Serial.write(1);
+    // init connection
+    // flush any left over serial
+    while(Serial3.available()>0){
+          tactor.status = Serial3.read();
+    }
+    tactor.stop();
+    delay(3000);
+    tactor.getStatus();
+    delay(1);
+    deg = Serial3.read();
+    if(deg == 0x00){
+        while(Serial3.available()){
+          tactor.status = Serial3.read();
+        } // flushing the buffer from any repeated 00
+        tactor.status=0;
+        tactor.prevStatus = 0;
+        strt = true;
+        Serial.println("program end");
+    }
+  else
+  {
+    Serial.write(deg);
+  }
+  }
+  Serial.println("started...");
+  tactor.statusREADER();
+  tactor.PWM(true);
+  tactor.statusREADER();
+ 
+  while(true){
+    tactor.getStatus(true);
+    tactor.statusREADER();
+  }
+}
+
+///***** 10-03 *****/// DEMO
+#include <Arduino.h>
+#include <Tactor.h>
+//#include <Mia.h>
+#include <FIFO.h>
+#include <TRFB.h>
+#include <logger.h>
+#include <sensorizedObj.h>
+
+void setup()
+{
+  pinMode(LED_BUILTIN, OUTPUT);
+  // Serial2 is used for debugging.
+  Serial.begin(115200);
+  noInterrupts();
+  // ISR
+  TCCR1A = 0;
+  TCCR1B = 0;
+  //OCR1A =   61;// OCR1A = 61 --> 1 kHz
+  //OCR1B  = 50;
+  // pre- scalers
+  TCCR1B |= (1 << CS10);  // 1 PRESCALE
+  TIMSK1 |= (1 << TOIE1); // Timeroverflow enable
+  TCNT1 = 49536;
+  interrupts();
+  Serial.print("L");
+  Serial.print(" ");
+  Serial.print("T");
+  Serial.print(" ");
+  Serial.println("T");
+}
+
+// start a tactor object
+Tactor tactor;
+// start a FIFO object
+FIFO fifoR, fifoL, fifoT; // right // left // Tangantial
+// start sensorized object
+sensorizedObj cube(A1, A2, A3);
+// start TRFB method
+TRFB FB;
+//LOGGER logD;
+
+// ISR
+volatile bool newData = false;
+volatile bool newState = false;
+volatile char tcks = 0;
+
+const long period = 20;
+bool started = false;
+long previousTime = 0;
+long currentTime = 0;
+unsigned int t = 0;
+int pos = 0;
+double summ[3] = {0};
+
+ISR(TIMER1_OVF_vect)
+{ // EVERY 1 msec
+  if (Serial1.available() >= 52 && !newData)
+  {
+    newData = true;
+    tcks = 0;
+  }
+  tcks++;
+  if (tcks == 10)
+  {
+    newState = true;
+    tcks = 0;
+  }
+  TCNT1 = 49536;
+}
+
+int sat2zero(int num)
+{
+  if (num > 0)
+  {
+    return (num);
+  }
+  else
+  {
+    return (0);
+  }
+}
+
+void biasCalculate(int Seconds)
+{
+  previousTime = millis();
+  while (millis() - previousTime < 3000)
+  {
+  }
+  // reset bias
+  cube.L_bias = 0;
+  cube.R_bias = 0;
+  cube.B_bias = 0;
+
+  int i = 0;
+  newState = false;
+  while (i < Seconds * 100)
+  {
+    if (newState)
+    {
+      cube.readForcesRaw();
+      summ[0] = summ[0] + cube.L[2];
+      summ[1] = summ[1] + cube.R[2];
+      summ[2] = summ[2] + cube.B[2];
+      i = i + 1;
+      newState = false;
+    }
+  }
+  cube.L_bias = round(summ[0] / i);
+  cube.R_bias = round(summ[1] / i);
+  cube.B_bias = round(summ[2] / i);
+  cube.calibrated = true;
+  newState = false;
+}
+
+int scale2byte(int value, int max, int min)
+{
+  // maps a range of numbers (max - min ) to (255-0) instead.
+  // Saturates if less or more to 0 or 255.
+  if (max - min >= 255)
+  {
+    if (value < min)
+    {
+      return 0;
+    }
+    if (value > max)
+    {
+      return 255;
+    }
+    //return ((int)round((value - min)*(255/(max - min))));
+    return((int)( (value - min) * ((double)255/(max - min)) ));
+  }
+  else
+  {
+    return value;
+  }
+}
+
+unsigned char buf[3]={0,0,0};
+unsigned int scale2int()
+{
+   Serial3.readBytes(buf,3);
+   return(
+   (unsigned int)
+   ((   (unsigned long) buf[0] << 16
+      | (unsigned long) buf[1] << 8
+      | (unsigned long) buf[2]      )/2)
+   );
+}
+
+
+void loop()
+{
+  if (!cube.calibrated)
+  {
+    biasCalculate(2);
+  }
+  else
+  {
+    // every loop
+    if (newState)
+    {
+      cube.read();
+      // update the fifos ...
+      fifoL.append(sat2zero(cube.L[2] - cube.L_bias));
+      fifoR.append(sat2zero(cube.R[2] - cube.R_bias));
+      if (cube.B[2] > cube.B_bias)
+      {
+        fifoT.append(0);
+      }
+      else
+      {
+        fifoT.append(sat2zero(abs(cube.B_bias - cube.B[2])));
+      }
+      FB.trfb(fifoL,fifoR,fifoT,scale2byte(fifoL.last(),300,0),tactor);
+      
+      Serial.print((fifoL.last()*37.32));
+      Serial.print(" ");
+      Serial.print((fifoR.last()*45.14));
+      Serial.print(" ");
+      Serial.println((fifoT.last()*37.91));
+      
+      newState = false;
+    }
+  }
+}

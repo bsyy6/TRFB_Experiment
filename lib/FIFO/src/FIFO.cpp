@@ -21,34 +21,24 @@ FIFO::FIFO()
 }
 
 // methods
-void FIFO::append(char newData) {
-  // if FIFO is still empty
-  if (FIFOsize < maxFIFOsize - 1) {
-    vector[FIFOsize] = newData;
-    FIFOsize += 1;
-  }
-  // once full ...
-  else
-  {
+void FIFO::append(int newData) {
+  vector[FIFOsize] = newData;
+  if(FIFOsize >= maxFIFOsize){    
+    runningSum = runningSum - vector[0] + vector[FIFOsize]; //used in moving average
     // shift FIFO to the left by one step
-    for (int i = 0; i < (maxFIFOsize - 1); i++)
+    for (int i = 0; i < maxFIFOsize; i++)
     {
       vector[i] = vector[i + 1];
     }
-    // add the latest data point;`
-    vector[FIFOsize] = newData;
+    FIFOsize = maxFIFOsize;
+  }else{
+    runningSum += newData;
+    FIFOsize+=1;
   }
 }
 
-char FIFO::last(){
- if (FIFOsize < maxFIFOsize - 1) {
+int FIFO::last(){
     return(vector[FIFOsize-1]);
-  }
-  // once full ...
-  else
-  {
-    return( vector[maxFIFOsize - 1]);
-  }
 }
 
 bool FIFO::isEqual(double number)
@@ -123,8 +113,35 @@ bool FIFO::isLess(double number)
     weight = (double)(i) + 1.0;
     voteCounter += weight * vote;
 
-
   }
 
   return ((voteCounter / sumVotes) > voteThreshold);
+}
+
+int FIFO::movingAvg(){
+ return(runningSum/FIFOsize);
+}
+
+
+bool FIFO::isEqual2(double number)
+{
+  // this function compares if the FIFO values are equal to a number within some error margin (err)
+  double Lowest_threshold = 0;
+  double Highest_threshold = number + 1;
+  double voteCounter = 0.0;
+  if(number > 1){
+  Lowest_threshold = number  - 1;
+  }
+
+  for (int i = 0; i < FIFOsize; i++)
+  {
+    double d1;
+    double vote;
+
+    d1 = vector[i];
+    vote = (double)(d1 <= Highest_threshold) && (double)(d1 >= Lowest_threshold);
+    voteCounter += vote;
+  }
+  // 0.6 is the vote of 60% as a threshold
+  return ((voteCounter / 10) > voteThreshold);
 }

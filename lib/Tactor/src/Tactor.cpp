@@ -7,16 +7,14 @@
 #include "Arduino.h"
 #include "Tactor.h"
 
+#define opened  24
+#define closed  28
 //constructor
 Tactor::Tactor()
 {
-  // Which Serial3 port connects to the tactors
-  int _board = 0x01;
-  Serial3.begin(115200);
+  // Which Serial1 port connects to the tactors
+  Serial1.begin(115200);
 
-  // look up table for stroke positions
-  unsigned int _STROKES[256] = {0, 19, 38, 59, 80, 101, 124, 147, 170, 195, 220, 246, 272, 300, 327, 356, 386, 416, 446, 478, 510, 543, 577, 611, 646, 682, 718, 755, 793, 832, 871, 911, 952, 993, 1036, 1079, 1122, 1167, 1212, 1257, 1304, 1351, 1399, 1448, 1497, 1548, 1599, 1650, 1703, 1756, 1810, 1864, 1919, 1976, 2032, 2090, 2148, 2207, 2267, 2328, 2389, 2451, 2514, 2577, 2642, 2707, 2772, 2839, 2906, 2975, 3043, 3113, 3183, 3255, 3327, 3399, 3473, 3547, 3622, 3698, 3775, 3852, 3930, 4009, 4089, 4170, 4251, 4333, 4416, 4500, 4584, 4670, 4756, 4843, 4931, 5019, 5109, 5199, 5290, 5382, 5475, 5568, 5663, 5758, 5854, 5951, 6049, 6147, 6247, 6347, 6448, 6550, 6653, 6757, 6861, 6967, 7073, 7180, 7288, 7397, 7507, 7618, 7730, 7842, 7955, 8070, 8185, 8301, 8418, 8536, 8655, 8775, 8895, 9017, 9139, 9263, 9387, 9513, 9639, 9766, 9894, 10024, 10154, 10285, 10417, 10550, 10684, 10819, 10955, 11092, 11230, 11369, 11509, 11650, 11792, 11935, 12080, 12225, 12371, 12518, 12666, 12816, 12966, 13118, 13270, 13424, 13579, 13734, 13891, 14049, 14208, 14369, 14530, 14692, 14856, 15021, 15187, 15354, 15522, 15691, 15862, 16034, 16207, 16381, 16556, 16733, 16910, 17089, 17270, 17451, 17634, 17818, 18003, 18190, 18377, 18567, 18757, 18949, 19142, 19336, 19532, 19729, 19928, 20128, 20329, 20532, 20736, 20941, 21148, 21357, 21566, 21778, 21991, 22205, 22421, 22638, 22857, 23077, 23299, 23523, 23748, 23974, 24203, 24433, 24664, 24897, 25132, 25369, 25607, 25847, 26089, 26333, 26578, 26825, 27074, 27325, 27578, 27832, 28088, 28347, 28607, 28869, 29133, 29400, 29668, 29938, 30211, 30485, 30762, 31040, 31321, 31604, 31890, 32177, 32467, 32759};
-  unsigned long _stroke = 0;
 }
 
 // methods
@@ -26,72 +24,320 @@ void Tactor::write(char cmdName[], char nBytes)
 {
   for (int i = 0; i < nBytes; i++)
   {
-    Serial3.write(cmdName[i]);
+    Serial1.write(cmdName[i]);
   }
 }
 
 // stops motor
 void Tactor::stop()
 {
-  Serial3.write(0x5F);
-  Serial3.write(_board);
-  Serial3.write(0x71);
-  Serial3.write(_board);
+  Serial1.write(0x5F);
+  Serial1.write(_board);
+  Serial1.write(0x71);
+  Serial1.write(_board);
 }
 
-void Tactor::vibrate()
+void Tactor::vibrate(unsigned char N, unsigned char dur)
 {
-  Serial3.write(_board);
-  Serial3.write(0x80);
-  Serial3.write(0x4A);
-  Serial3.write(_board);
+  if(dur>63) dur = 63;
+  if(N>4) N =4;
+  Serial1.write(0x5f);
+  Serial1.write(_board);
+  Serial1.write(0x80);  // fixed
+  Serial1.write((N<<6)|dur);  // length in msec/ 10 + 64 
+  Serial1.write(_board); 
 }
 
-int Tactor::getStatus()
+void Tactor::getStatus(bool wait)
 {
-  Serial3.write(0x5F);
-  Serial3.write(_board);
-  Serial3.write(0x70);
-  Serial3.write(_board);
-  _startWaitTime = millis();
-  while (millis() - _startWaitTime < 1000)
-  {
-    if (Serial3.available())
-    {
-      return (Serial3.read()); // status is a single byte, refer to manual.
-    }
+  // wait is by default false.
+  // wait forcees the program to wait for the status byte.
+  while(Serial1.available()){
+    status = Serial1.read();
   }
-  return (-1);
+  Serial1.write(0x5F);
+  Serial1.write(_board);
+  Serial1.write(0x70);
+  Serial1.write(_board);
+  
+  if(wait)
+  {  
+    while(Serial1.available()==0){
+      // wait for data on Serial1.
+    }
+    status = Serial1.read();
+    if((status&12) != 12){ // ignore status when both FCA and FCB are active 
+      //statusChanged = ((status&8)!=(prevStatus&8) || (status&4) != (prevStatus&4));
+      //prevStatus = status;
+    }
+  }else{
+    status = Serial1.read();
+  }
 }
 
-void Tactor::setPosition(int Pos)
+void Tactor::setPosition(unsigned int Pos)
 {
-  Serial2.write(0x5F);
-  Serial2.write(_board);
-  Serial2.write(0x21); // we never really get the 17th byte thing in this, so this is the standarad message to set the tactor position.
+  if(Pos>=200) Pos = 200; // saturation!
+  Pos = (255*Pos)/200;
+  if(Pos>=256) Pos = 255; // saturation!
+  
+
+  pos_temp = _STROKES[Pos];
+  // pos_temp = Pos; // for debugging
+  // grab pos from lookup table
+  Serial1.write(0x5F);
+  Serial1.write(_board);
+  Serial1.write(0x21); // we never really get the 17th byte thing in this, so this is the standarad message to set the tactor position.
 
   // why this? Because of undefined behaviour in case the integer has is less than 255 and you shift it write by 8 bits.
-  if (_STROKES[Pos] > 255)
+  if (pos_temp> 255)
   {
-    Serial2.write((_STROKES[Pos] >> 8) & 0xFF); // MSB
-    Serial2.write(_STROKES[Pos] & 0xFF);        // LSB
+    Serial1.write((pos_temp >> 8) & 0xFF); // MSB
+    Serial1.write(pos_temp & 0xFF);        // LSB
   }
   else
   {
-    Serial2.write(0);             // MSB
-    Serial2.write(_STROKES[Pos]); //LSB
+    Serial1.write((byte) 0x00);             // MSB
+    Serial1.write(pos_temp & 0xFF); //LSB
+  }
+  Serial1.write(_board);
+}
+
+void Tactor::getPosition(bool wait){
+  Serial1.write(0x5F);
+  Serial1.write(_board);
+  Serial1.write(0x22);
+  Serial1.write(_board);
+  if (wait)
+  {
+  while(Serial1.available() < 3){}
+  static unsigned char buf[3] = { 0, 0, 0};
+  Serial1.readBytes(buf,3);
+  position = (unsigned int)
+    ((    (unsigned long) buf[0] << 16
+        | (unsigned long) buf[1] << 8
+        | (unsigned long) buf[2]      ));
+  }
+}
+
+void Tactor::setPWM(bool opn, unsigned int PWM){
+  // tactor saturates at PWM = 500 , opn controls CW o CCW 
+  Serial1.write(0x5F);
+  Serial1.write(_board);
+  Serial1.write(0x74);
+  if(PWM>500) PWM =500;
+            // open or close    // the PWM
+  static unsigned int cmd  = 0;
+  cmd = ((opn<<15)&0x8000)|(PWM & 0x1FF);
+  Serial1.write((cmd&0xFF00)>>8);
+  Serial1.write((cmd&0xFF));
+  Serial1.write(0x01);
+}
+
+void Tactor::PWM_MOTORS(bool opn,bool wait){
+ // Serial1.write(0x01);
+  Serial1.write(0x5F);
+  Serial1.write(_board);
+  Serial1.write(0x74);
+
+  if(opn){
+    // true is open so send a command to pull back the tactor 
+    Serial1.write(128); //HB 1000-0001
+    Serial1.write(150); //LB 1111-1111
+  }else{
+    Serial1.write((byte) 0x00);   //HB 0000-0001
+    Serial1.write(150); //LB 1111-1111
+  }
+  Serial1.write(_board);
+
+  if(wait){
+    // if the second argument is true it waits for stop signal from the hall sensors. (default) 
+    getStatus(true);
+    
+    while(!statusChanged){
+        getStatus(true);
+    }
+    stop();
+  }
+}
+
+void Tactor::Calibrate(){
+  getStatus();
+  while(!Serial1.available())
+  {
+    // forced wait for status byte
+  }
+  status = Serial1.read();
+
+  PWM_MOTORS((status&8) == 8); // send a command to open if closed or close if opened.
+  while(!(status == opened)) //when it reads open!
+  {
+    getStatus();
+    while(!Serial1.available())
+    {
+    }
+    status = Serial1.read();
+  }
+  stop();
+  getStatus();
+  while(!Serial1.available())
+  {
+  }
+  status = Serial1.read();
+  if(status == 4){
+    PWM_MOTORS(false);
+  }
+  while(!(status == closed)) //when it reads open!
+  {
+    getStatus();
+    while(!Serial1.available())
+    {
+    }
+    status = Serial1.read();
+  }
+  stop();
+  getStatus();
+  if(status == 8)
+  {
+  unsigned char buf[3]= {0,0,0};
+  getPosition();
+  while(Serial1.available() < 3){}
+  Serial1.readBytes(buf,3);
+  bias = (unsigned int)
+    ((    (unsigned long) buf[0] << 16
+        | (unsigned long) buf[1] << 8
+        | (unsigned long) buf[2]      )/2);
+  }
+}
+
+
+void Tactor::Test1(){
+  getStatus(true);
+  
+  PWM_MOTORS((status&8) != 8); // if it is open it will close and vice versa
+
+  PWM_MOTORS((status&8) == 8);
+
+  stop();
+  // now we are sure it is in starting place...
+  delay(1000); // wait 1 second
+  getPosition(true);
+  for( char i = 0; i < 10; i++)
+  {
+    PWM_MOTORS(true);
+    getPosition(true);
+    PWM_MOTORS(false);
+    getPosition(true);
+  }
+}
+
+void Tactor::Test2(){
+  // stiarcase test
+  getStatus(true);
+  unsigned int posi = 0;
+  for (int i = 0; i <11 ;i++){
+    posi=i*4096;
+    setPosition(posi);
+    delay(1000);
+    getPosition(true);
+    //read from force senor;#
+    // send data through serial!
+  }
+}
+
+void Tactor::Test3(){
+   getStatus(true);
+  unsigned int posi = 0;
+  for (int i = 0; i <12 ;i++){
+    posi=i*4096;
+    setPosition(posi);
+    delay(1000);
+    getPosition(true);
+    //read from force senor;#
+    // send data through serial!
   }
 
-  Serial2.write(_board);
 }
 
-void Tactor::feedbackOn()
-{
-  //stroke = findStroke();
-  //long2buf(stroke,buf);
-  //checkStatus('setp', buf , board);
+/*
+void Tactor::Test2(){
+  getStatus(true);
+  
+}
+*/
+void Tactor::statusREADER(){
+  String stringa = " ";
+
+  stringa = status_str[int(((status&224)>>5))];             // MODE
+           
+  stringa = stringa + status_str[int(((status&16) >>4))+ 8] // contorl ok
+            + status_str[int(((status&8 ) >>3))+10]         // FCA
+            + status_str[int(((status&4 ) >>2))+12]         // FCB
+            + status_str[int(((status&2 ) >>1))+14]         // current
+            + status_str[int(((status&1 )    ))+16];        //  moving ?
+  //println(stringa);
 }
 
-long Tactor::findStroke()
-{
+void Tactor::Start(){
+  stop();
+  delay(1000);
+  Serial1.write(0x5f);
+  Serial1.write(0x01);
+  Serial1.write((byte) 0x00 );
+  Serial1.write(0x01); 
+  delay(5000);
+  getStatus(false); 
+  if(status == 0){
+    vibrate(4,60);
+    delay(200);
+    vibrate(4,60);
+  }else{
+    vibrate(4,60);
+  }
+}
+
+char Tactor::setPID(char _Kp, char _Ki, char _Kd, char _err){
+  stop();
+  Serial1.write(0x5f);
+  Serial1.write(0x01);
+  Serial1.write(0x24);
+  Serial1.write(_Kp);
+  Serial1.write(_Ki);
+  Serial1.write(_Kd);
+  Serial1.write(_err);
+  Serial1.write(0x01);
+  while(!Serial1.available()){
+
+  }
+  return(Serial1.read() == 0xAA);
+}
+
+void Tactor::getPID(){
+  // gets the PID values from the spingatore
+  // flush
+  stop();
+  while(Serial1.available()){
+    kp = Serial1.read();
+  }
+  Serial1.write(0x5f);
+  Serial1.write(0x01);
+  Serial1.write(0x25);
+  Serial1.write(0x01);
+  while(Serial1.available() < 4){
+  }
+  kp = Serial1.read();
+  ki = Serial1.read();
+  kd = Serial1.read();
+  er = Serial1.read();
+}
+
+void Tactor::dumpPID(){
+  // prints out the PID values to serial0, call getPID() first!
+  Serial.print((unsigned int)kp);
+  Serial.print("\t");
+  Serial.print((unsigned int)ki);
+  Serial.print("\t");
+  Serial.print((unsigned int)kd);
+  Serial.print("\t");
+  Serial.print((unsigned int)er);
 }

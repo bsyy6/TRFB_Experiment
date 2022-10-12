@@ -13,20 +13,23 @@ class FIFO
 {
   public:
     int maxFIFOsize = 10;
-    unsigned char vector[10] = {0};
-    unsigned char newData = 0;
-    double err = 0.01; // error margin when computing values isLess/isMore ...
+    int vector[11] = {0}; //I add one extra on purpose. check append method.
+    int newData = 0;
+    double err = 0.05; // error margin when computing values isLess/isMore ...
     
     double voteThreshold = 0.6;
     double counter;
     double sumVotes;
     FIFO();
-    void append(char newData);
+    void append (int newData);
     bool isEqual(double number);
     bool isMore (double number);
     bool isLess (double number);
-    char last();
-    int FIFOsize;
+    int last();
+    int movingAvg();
+    long runningSum;
+    int FIFOsize =0;
+    bool isEqual2(double number);
     
 
 
