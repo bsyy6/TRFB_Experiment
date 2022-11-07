@@ -13,7 +13,7 @@ class FIFO
 {
   public:
     int maxFIFOsize = 10;
-    int vector[11] = {0}; //I add one extra on purpose. check append method.
+    int vector[11] = {0}; // FIFO vector, I add one extra on purpose. check append method.
     int newData = 0;
     double err = 0.05; // error margin when computing values isLess/isMore ...
     
@@ -30,8 +30,8 @@ class FIFO
     long runningSum;
     int FIFOsize =0;
     bool isEqual2(double number);
-    
-
+    unsigned int isEqual3(unsigned int number);
+    unsigned int latestNum = 0;
 
   private:
    // nothing.

@@ -49,7 +49,7 @@ void sensorizedObj::write2Fifo(){
   read();
   fifoL.append(sat2zero(L_biased));
   fifoR.append(sat2zero(R_biased));
-  fifoT.append(B_biased);
+  fifoT.append(sat2zero(B_biased));
   //FSR
   fifoF.append(sat2zero(F_biased));
 }

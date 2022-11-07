@@ -55,7 +55,15 @@ public:
   void trfb(FIFO fifo,FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor);
   bool liftedFlag = 0; //[7]
   char vibrate = 0;
-  unsigned fb_type = 0; // 0 no feedback / 1 continuous feedback / 2 Transitory feedback / 3 DESC / 4 continuous without vibration / 5 tranistory witout vibration
+  unsigned char fb_type = 0; 
+  /* 
+     0 no feedback
+     1 continuous feedback 
+     2 Transitory feedback 
+     3 DESC 
+     4 continuous without vibration 
+     5 tranistory witout vibration
+  */
 };
 
 #endif

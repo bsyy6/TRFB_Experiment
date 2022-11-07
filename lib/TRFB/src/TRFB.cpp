@@ -53,11 +53,11 @@ void TRFB::trfb(FIFO fifo, FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor)
   {
     if((fb_type <= 3 && fb_type > 0))
     {
-      tactor.vibrate(2,4);
-      vibrate--;
+      // tactor.vibrate(4,30); // I removed vibration for now.
+      vibrate=0;
       waitt = 15;
     }else{
-      vibrate--;
+      vibrate = 0;
     }
   }
   

@@ -77,8 +77,6 @@ void Tactor::getStatus(bool wait)
 
 void Tactor::setPosition(unsigned int Pos)
 {
-  if(Pos>=200) Pos = 200; // saturation!
-  Pos = (255*Pos)/200;
   if(Pos>=256) Pos = 255; // saturation!
   
 
@@ -279,8 +277,8 @@ void Tactor::statusREADER(){
 }
 
 void Tactor::Start(){
-  stop();
-  delay(1000);
+  //stop();
+  delay(5000);
   Serial1.write(0x5f);
   Serial1.write(0x01);
   Serial1.write((byte) 0x00 );
@@ -289,7 +287,7 @@ void Tactor::Start(){
   getStatus(false); 
   if(status == 0){
     vibrate(4,60);
-    delay(200);
+    delay(500);
     vibrate(4,60);
   }else{
     vibrate(4,60);

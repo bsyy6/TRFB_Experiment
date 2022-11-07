@@ -145,3 +145,26 @@ bool FIFO::isEqual2(double number)
   // 0.6 is the vote of 60% as a threshold
   return ((voteCounter / 10) > voteThreshold);
 }
+
+
+unsigned int FIFO::isEqual3(unsigned int number)
+{
+  // if really low just skip to zero position
+  if(number < 10){
+    latestNum = 0;
+    return(0);
+  }
+
+  if (number > latestNum){
+    if(number-latestNum > 3){
+      latestNum = number;
+      return(number);
+    }
+  }else{
+     if(latestNum-number >3){
+      latestNum = number;
+      return(number);
+    }
+  }
+  return(latestNum); 
+}
