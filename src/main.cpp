@@ -20,8 +20,8 @@ long timeFromLastIncrement = 0;
 
 // for the LED
 const byte RED = 9;
-const byte YEL = 8;
-const byte BLU = 7;
+const byte WHT = 8;
+const byte GRN = 7;
 
 // for the Bush puttons
 bool btnState[3] = {HIGH,HIGH,HIGH};
@@ -70,8 +70,8 @@ void setup()
 
   /* LED */
   pinMode(RED, OUTPUT);
-  pinMode(YEL, OUTPUT);
-  pinMode(BLU, OUTPUT);
+  pinMode(WHT, OUTPUT);
+  pinMode(GRN, OUTPUT);
 
   /* buttons */
   pinMode(btnStp,INPUT_PULLUP);
@@ -131,6 +131,16 @@ bool manual = false;
 bool pull_up = false;
 
 unsigned char x = 0;
+// continuous - No - DESC+ - DESC only
+unsigned char nExp [2][5] = {{30,200,100,100,25}, {2, 7, 10, 13, 15}};
+unsigned char nExp_real[5] = {30,200,100,100,25};
+unsigned char nExp_test[5] = {2, 7, 10, 13, 15};
+
+void change_nExp(unsigned int t){
+  for (int i = 0; i<5; i++){
+     nExp_test[i] = nExp[t][i];
+  }
+}
 
 void logData();
 
@@ -166,11 +176,15 @@ void loop()
   // start up button or s
   while(Serial.read() != 's' &&  btnCount[btnStp-4] == 0)
   {
-    digitalWrite(YEL,HIGH);
+    digitalWrite(WHT,HIGH);
+    digitalWrite(RED,HIGH);
+    digitalWrite(GRN,HIGH);
     digitalWrite(LED_BUILTIN,HIGH);
     delay(1000);
     digitalWrite(LED_BUILTIN,LOW);
-    digitalWrite(YEL,LOW);
+    digitalWrite(WHT,LOW);
+    digitalWrite(RED,LOW);
+    digitalWrite(GRN,LOW);
     delay(1000);
     debounceButton(btnStp);
   }
@@ -193,11 +207,12 @@ void loop()
   // signal it is done ... with lights
   for ( int i = 0 ; i<4; i++){
     delay(250);
-    digitalWrite(LED_BUILTIN,HIGH);
-    digitalWrite(YEL,HIGH);
+    digitalWrite(WHT,HIGH);
     delay(250);
     digitalWrite(LED_BUILTIN,LOW);
-    digitalWrite(YEL,LOW);
+    digitalWrite(WHT,LOW);
+    digitalWrite(GRN,LOW);
+    digitalWrite(WHT,LOW);
   }
 
   // reset interrupts
@@ -254,10 +269,10 @@ void loop()
       // scheme for experiment!
       // [1] check which experiment we have
       
-      if(count < 25 ){
+      if(count < nExp_test[0] ){
         FB.fb_type = 1;
       }
-      if(count >= 26 && count <=425){
+      if(count >=nExp_test[0]  && count <=nExp_test[3]){
         switch (Group)
         {
         case 1: // group 1 Continuous feedback
@@ -277,16 +292,11 @@ void loop()
           break;
         }
       }
-      if(count > 425){
+      if(count > nExp_test[3]){
         FB.fb_type = 0;
       }
       // catch trials
-      if(count > 325)
-      {
-        x = (unsigned char) random(8,12);
-      }else{
-        x = 10;
-      }
+      
       // [2] read force from sensorized object
       cube.write2Fifo();
       /*
@@ -305,7 +315,7 @@ void loop()
       // [3] move motor
       // test scenario
       if(!manual){
-       FB.trfb(cube.fifoL, cube.fifoR, cube.fifoT, x*PosCmd/10, tactor);
+       FB.trfb(cube.fifoR, cube.fifoL, cube.fifoT, x*PosCmd/10, tactor);
       }else{
         if(pull_up){
           tactor.setPosition(255); // pull it down.
@@ -321,16 +331,17 @@ void loop()
       // [4] red for broken box
       if((cube.fifoL.last()>cubeLimit)&& !failed){
         digitalWrite(RED,HIGH);
-        digitalWrite(BLU,LOW);
-        digitalWrite(YEL,LOW);
+        digitalWrite(GRN,LOW);
+        digitalWrite(WHT,LOW);
         failed = true;
+        counterHold = 0;
         err_flag = 1;
       }else{
         if(FB.state == 2 && counterHold < 100 ){
           counterHold++;
         }
         if(counterHold >= 100 && !failed ){
-          digitalWrite(YEL,HIGH);
+          digitalWrite(WHT,HIGH);
           counterHold = 0;
           success = 1;
         }
@@ -350,11 +361,11 @@ void loop()
      pocketNum++;
 
      // logger 
-     //logData();
+     logData();
       // debugging
-      if(Serial1.available()){
-        Serial.write(Serial1.read());
-      }
+      // if(Serial1.available()){
+      //   Serial.write(Serial1.read());
+      // }
 
      //debounceButton(btnFil);
      //debounceButton(btnRpt);
@@ -438,12 +449,17 @@ void logData(){
     case 'G':
       debugvar = Serial.read()-48;
       if(debugvar > 0 && debugvar <= 4){
-      Serial.println(Group);
       Group = (char) debugvar;
-      Serial.println(Group);
       count = 0;
       }
-      break;      
+      break;
+    case 'M':
+      debugvar = Serial.read()-48;
+      if(debugvar > 0 && debugvar <= 4){      
+      change_nExp((int) debugvar +1);
+      count = 0;
+      }
+      break;    
     }
   }
   if(!stopStream){ 
@@ -455,7 +471,7 @@ void logData(){
   Serial.print((unsigned int)record); // record
   Serial.print("\t");
   // strokes pos command
-  Serial.print((unsigned int)tactor._STROKES[PosCmd2]);
+  Serial.print((unsigned int)count);
   Serial.print("\t");
   // feedback information
   Serial.print((unsigned int) FB.fb_type);
@@ -481,6 +497,8 @@ void logData(){
   Serial.print("\t");
   Serial.print((int) x);
   Serial.print("\t");
+  Serial.print((int) Group);
+  Serial.print("\t");
   Serial.print(pocketNum);
   Serial.print("\n");
   }
@@ -494,11 +512,10 @@ void debounceInterrupt() {
       if(state){ // from low -> High
       last_micros = millis();
       state = digitalRead(interruptPin);
-      digitalWrite(BLU, LOW);
+      digitalWrite(GRN, LOW);
       digitalWrite(RED, LOW);
-      digitalWrite(YEL, LOW);
+      digitalWrite(WHT, LOW);
       record = 1;
-
       }
       else
       { // from high -> low
@@ -507,10 +524,16 @@ void debounceInterrupt() {
       err_flag =0;
       failed = 0;
       count++;
+      if(count > nExp_test[2])
+      {
+        x = (unsigned char) random(8,12);
+      }else{
+        x = 10;
+      }
       record = 0;
       digitalWrite(RED, LOW);
-      digitalWrite(YEL, LOW);
-      digitalWrite(BLU, HIGH);
+      digitalWrite(WHT, LOW);
+      digitalWrite(GRN, HIGH);
       } 
       last_micros = millis();
       state = digitalRead(interruptPin);

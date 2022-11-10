@@ -53,7 +53,7 @@ void TRFB::trfb(FIFO fifo, FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor)
   {
     if((fb_type <= 3 && fb_type > 0))
     {
-      // tactor.vibrate(4,30); // I removed vibration for now.
+      tactor.vibrate(4,5); // I removed vibration for now.
       vibrate=0;
       waitt = 15;
     }else{
@@ -90,6 +90,7 @@ void TRFB::trfb(FIFO fifo, FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor)
 // 0 -> nothing happending
 // 1 -> object is in hand (continuous feedback is on)
 // 2 -> Feedback fade-away
+//                          FIFOR       FIFOL       FIFOT
 void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
 {
   newState = state; // keep a copy
@@ -183,7 +184,8 @@ void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
     }
 
     // safety in case small return to 0 state
-    if ((fifo.isLess(xtouch)||fifo1.isLess(xtouch)) && (liftedFlag == 0.0))
+    // ((fifo.isLess(xtouch)||fifo1.isLess(xtouch)) && (liftedFlag == 0.0))
+    if ((fifo1.isLess(xtouch)) && (liftedFlag == 0.0))
     {
       reset();
       vibrate++;
@@ -200,7 +202,8 @@ void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
     }
 
     //  feedback remove
-    if (fifo.isLess(xtouch) || fifo1.isLess(xtouch))
+    // (fifo.isLess(xtouch) || fifo1.isLess(xtouch)
+    if (fifo1.isLess(xtouch))
     {
       reset();
       newState = 0;
