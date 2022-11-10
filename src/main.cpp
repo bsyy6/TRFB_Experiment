@@ -456,15 +456,13 @@ void logData(){
     case 'M':
       debugvar = Serial.read()-48;
       if(debugvar > 0 && debugvar <= 4){      
-      change_nExp((int) debugvar +1);
+      change_nExp((int) debugvar -1);
       count = 0;
       }
       break;    
     }
   }
   if(!stopStream){ 
-
-  
   // general 
   Serial.print((int)move_robots);
   Serial.print("\t");
