@@ -43,8 +43,7 @@ void TRFB::reset()
 // tactor is the communication protocol for tactor made by Clemente 2015.
 void TRFB::trfb(FIFO fifo, FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor)
 {
-  t = t + 1;
-  stateUpdate(fifo, fifo1, fifo2, 0);
+  t = t + 1;  
   if ( waitt > 0 ){
     waitt --;
   }
@@ -53,24 +52,26 @@ void TRFB::trfb(FIFO fifo, FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor)
   {
     if((fb_type <= 3 && fb_type > 0))
     {
-      tactor.vibrate(4,5); // I removed vibration for now.
-      vibrate=0;
+      tactor.vibrate(4,5); 
+      vibrate--;
       waitt = 15;
     }else{
       vibrate = 0;
     }
   }
-  
+
   switch ((int)state)
   {
   case 0:
     feedbackOff(tactor);
     break;
+    
   case 1:
     if(fb_type != 0 && fb_type != 3){
     feedbackOn(Pos, tactor);
     }
     break;
+
   case 2:
     if(fb_type == 2 || fb_type == 5){
      feedbackFade(Pos, tactor);
@@ -79,11 +80,12 @@ void TRFB::trfb(FIFO fifo, FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor)
      feedbackOn(Pos, tactor);
     }
     break;
+
   default:
     feedbackOff(tactor);
     break;
   }
-  
+  stateUpdate(fifo, fifo1, fifo2, 0);
 }
 
 // states:
@@ -98,11 +100,12 @@ void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
   {
   case 0:
     // case 0: no feedback condition
-    
-    if ((fifo.isMore(touch) || fifo1.isMore(touch)) && (coolDownFlag == 0.0) && (droppedFlag == 0.0))
+    // fifo.isMore(touch) ||
+    if ((fifo1.isMore(touch)) && (coolDownFlag == 0.0) && (droppedFlag == 0.0))
     {
       // detection of first grasp.
       vibrate++;
+      vib_state = 1;
       // debug
       newState = 1;
     }
@@ -126,8 +129,25 @@ void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
       }
     }
     */
+    // so it viberates even if no touch is detected.  
+    if(liftedFlag==0.0){
+      // lifted the object
+      if(fifo2.isMore(lift)){
+        liftedFlag = 1.0;
+        vibrate++;
+        vib_state= 2;
+      }
+    }else{
+      // dropped the object
+      if(fifo2.isLess(xlift)){
+        liftedFlag = 0.0;
+        vibrate++;
+        vib_state= 3;
+      }
+    }
+
     //  so it doesnt count long light holds as dropped
-    if ((droppedFlag != 0.0) && fifo.isEqual(0))
+    if ((droppedFlag != 0.0) && fifo1.isEqual(0))
     {
       droppedFlag = 0.0;
       newState = 0;
@@ -143,12 +163,14 @@ void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
       if(fifo2.isMore(lift)){
         liftedFlag = 1.0;
         vibrate++;
+        vib_state= 4;
       }
     }else{
       // dropped the object
       if(fifo2.isLess(xlift)){
         liftedFlag = 0.0;
         vibrate++;
+        vib_state= 5;
       }
     }
 
@@ -160,7 +182,7 @@ void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
     }
     else
     {
-      if ((fifo.isEqual(fifo.vector[fifo.maxFIFOsize - 1])) && (liftedFlag == 1.0)) // I used to have isLess here.
+      if ((fifo1.isEqual2(fifo1.vector[fifo1.maxFIFOsize - 1])) && (liftedFlag == 1.0)) // I used to have isLess here.
       {
         if (holdTimer > holdTimeLimit)
         {
@@ -175,40 +197,53 @@ void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
     }
 
     //  safety for sudden drops
-    if ((fifo.isLess(fifo.vector[0] * 0.1)) && (liftedFlag == 1.0))
+    if ((fifo1.isLess(fifo1.vector[0] * 0.1)) && (liftedFlag == 1.0))
     {
-      reset();
-      droppedFlag = 1.0;
-      vibrate++;
-      newState = 0;
+      // reset();
+      // droppedFlag = 1.0;
+      // vibrate++;
+      // vib_state= 6;
+      // newState = 0;
     }
 
     // safety in case small return to 0 state
     // ((fifo.isLess(xtouch)||fifo1.isLess(xtouch)) && (liftedFlag == 0.0))
-    if ((fifo1.isLess(xtouch)) && (liftedFlag == 0.0))
+    if ((fifo1.isLess(xtouch)) && (liftedFlag == 0.0) && (!droppedFlag))
     {
       reset();
       vibrate++;
+      vib_state= 7;
       newState = 0;
     }
 
     break;
 
   case 2:
-    if (fifo2.isLess(xlift) && liftedFlag)
-    {
-      vibrate++;
-      liftedFlag = 0.0;
+    if(liftedFlag==0.0){
+      // lifted the object
+      if(fifo2.isMore(lift)){
+        liftedFlag = 1.0;
+        vibrate++;
+        vib_state= 8;
+      }
+    }else{
+      // replaced the object
+      if(fifo2.isLess(xlift)){
+        liftedFlag = 0.0;
+        vibrate++;
+        vib_state= 9;
+      }
     }
-
     //  feedback remove
     // (fifo.isLess(xtouch) || fifo1.isLess(xtouch)
+    // released
     if (fifo1.isLess(xtouch))
     {
       reset();
       newState = 0;
       // coolDownFlag = 1.0;
       vibrate++;
+      vib_state= 10;
     }
 
     break;

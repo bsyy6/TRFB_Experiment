@@ -34,10 +34,10 @@ private:
   char minTheshold_B = 1;
   char maxThreshold_B = 255;
   // parameters
-  int lift = 30;
-  int xlift = 20;
+  int lift = 20;
+  int xlift = 10;
   int touch = 20;
-  int xtouch = 10;
+  int xtouch = 15;
   //
   void feedbackOn(unsigned int Pos, Tactor tactor);
   void feedbackFade(int& Pos, Tactor tactor);
@@ -49,12 +49,24 @@ private:
 
 public:
   char state = 0;
-  volatile int fadeTime = 50;
+  volatile int fadeTime = 100; // 100 = 1 second
   TRFB();
   void reset();
   void trfb(FIFO fifo,FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor);
   bool liftedFlag = 0; //[7]
   char vibrate = 0;
+  char vib_state = 0; // viberates on different conditions
+  // 00: not defined. 
+  // 01: touched .
+  // 02: lifted without touching.
+  // 03: replaced without tounching.
+  // 04: lifted after touching before stable grasp.
+  // 05: repalced after touching before stable grasp.
+  // 06: sudden drops.
+  // 07: removed touch before lifitng.
+  // 08: lifted the object after stable grasp.
+  // 09: replaced object after stable grasp.
+  // 10: remved touch from the object after stable grasp.
   unsigned char fb_type = 0; 
   /* 
      0 no feedback

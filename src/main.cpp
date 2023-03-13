@@ -11,7 +11,7 @@
 // for the button
 const byte interruptPin = 2;
 volatile byte state = LOW;
-volatile int count = 0;
+volatile unsigned int count = 0;
 int count_old = 0;
 long debouncing_time = 15; //Debouncing Time in Milliseconds
 
@@ -32,9 +32,12 @@ const int btnStp = 6;
 const int btnFil = 5;
 const int btnRpt  = 4; 
 unsigned long btn_debouncing_time = 500;
+bool cmdSent = false;
 
 void debounceInterrupt();
 void debounceButton(unsigned int nPin);
+bool checkIfPause(void);
+
 void setup()
 {
   Serial.begin(115200);
@@ -52,10 +55,12 @@ void setup()
   // pre-scalers
   TCCR1B |= (1<< CS11);
   TCNT1 =  45535;        //100 Hz interrupt
- 
-  TIMSK1 |= (1 << TOIE1); // Timeroverflow enable
   // = 16000000 / (1 * 1000) - 1 (must be <65536)
   // for 100 Hz
+ 
+  TIMSK1 |= (1 << TOIE1); // Timeroverflow enable
+  
+
 
 
   // TCCR1B |= (1 << CS10);  
@@ -90,55 +95,68 @@ TRFB FB;
 //LOGGER logD;
 // ISR
 
-volatile bool newData = false;
-volatile bool intFlag = false;
-volatile char tcks = 0;
 
-const long period = 20;
+volatile bool intFlag = false;
+
+
+// not used  kept for refrence legacy code
+// const long period = 20;
+// long previousTime = 0;
+// long currentTime = 0;
+// volatile char tcks = 0;
+// volatile bool newData = false;
+// unsigned int t = 0;
+// int pos = 0;
+// double summ[3] = {0};
+// unsigned char debugCounter = 0;
+// int  deg  = 0x61;
+// char deg2 = 0x05;
+// unsigned int timr =0x00;
+// unsigned char buf[3] = { 0,0, 0};
+// unsigned char Serialstart1 = false;  // true if start falg arrived in serial 1
+// int FrsCmd = 500;
+// bool open = false;
+
+
 bool started = false;
 bool failed = false;
-long previousTime = 0;
-long currentTime = 0;
-unsigned int t = 0;
-int pos = 0;
-double summ[3] = {0};
 byte u = LOW;
 bool TimeOutErr = false;
 bool stopStream = false;
 
-unsigned char debugCounter = 0;
-unsigned long debugvar = 0;
+
+unsigned long tempVar = 0;
 char record = 0;
 char err_flag = 0;
 char move_robots = 0;
 int counterHold = 0;
 int success = 0;
 bool strt = false;
-int  deg  = 0x61;
-char deg2 = 0x05;
-unsigned int timr =0x00;
+
+
 unsigned int pocketNum = 0; 
-unsigned int cubeLimit = 170; 
-unsigned char buf[3] = { 0,0, 0};
-unsigned char Serialstart1 = false;  // true if start falg arrived in serial 1
+unsigned int cubeLimit = 150; // was 190 
+
 unsigned char Group = 1;
-volatile unsigned int PosCmd = 0;
-volatile unsigned int PosCmd2 = 0;
-int FrsCmd = 500;
+volatile unsigned int PosCmd = 0; // this is the output from TRFB. between 0-255
+volatile unsigned int PosCmd2 = 0;// I map it here to other range instead. example 0 - 100
+
 signed int err = 0;
-bool open = false;
+
 bool manual = false;
 bool pull_up = false;
+bool manualFB = false;
+bool aPause = false;
 
-unsigned char x = 0;
-// continuous - No - DESC+ - DESC only
-unsigned char nExp [2][5] = {{30,200,100,100,25}, {2, 7, 10, 13, 15}};
-unsigned char nExp_real[5] = {30,200,100,100,25};
-unsigned char nExp_test[5] = {2, 7, 10, 13, 15};
+unsigned char x = 10;
+unsigned char old_x = 10;
+
+unsigned int nExp [2][5] = {{30,230,330,430,455}, {2, 7, 10, 30, 35}};
+unsigned int nExp_test[5] = {30,230,330,430,455};
 
 void change_nExp(unsigned int t){
   for (int i = 0; i<5; i++){
-     nExp_test[i] = nExp[t][i];
+     nExp_test[i] =nExp[t][i];
   }
 }
 
@@ -162,13 +180,13 @@ void loop()
   // pressing the button makes it start ..
 
   /* check if the tactor board is live, if not turn off the serial */
-  tactor.getStatus();
+  tactor.getStatus(false);
   delay(100);
   if(Serial1.available() == 0){
-   Serial1.end(); 
+    Serial1.end(); 
   }else{
     while(Serial1.available()){
-      debugvar = Serial1.read();
+      tempVar = Serial1.read();
     }
   }
 
@@ -190,7 +208,7 @@ void loop()
   }
   
   
-  if(!Serial1) Serial1.begin(115200);
+  Serial1.begin(115200);
   
   digitalWrite(LED_BUILTIN,LOW);
 
@@ -198,7 +216,8 @@ void loop()
   if(!strt)
   {
     cube.biasCalculate(1, intFlag); //bias the force sensor 
-    tactor.Start(); // pulls the motor down    
+    //tactor.Start(); // pulls the motor down    
+    tactor.getStatus(false); // was false
     count = count_old;
     timeFromLastIncrement = millis();
     strt = 1;
@@ -224,7 +243,7 @@ void loop()
 
   // flush out serial
   while(Serial1.available()){
-    debugvar =  Serial1.read();
+    tempVar =  Serial1.read();
   }
 
   digitalWrite(LED_BUILTIN,HIGH);
@@ -236,6 +255,22 @@ void loop()
       digitalWrite(22,u); // for debugging
       u = !u;
       
+      if(checkIfPause() && !aPause && move_robots){
+       for ( int i = 0 ; i<4; i++){
+        delay(250);
+        digitalWrite(WHT,HIGH);
+        delay(250);
+        digitalWrite(LED_BUILTIN,LOW);
+        digitalWrite(WHT,LOW);
+        digitalWrite(GRN,LOW);
+        digitalWrite(WHT,LOW);
+        }
+        aPause = true;
+        move_robots = false;
+        record = 0;
+        TimeOutErr = false;
+        intFlag = false;
+      }
       // routine for PID
       /*
       if(calPIDgaines){
@@ -268,37 +303,39 @@ void loop()
 
       // scheme for experiment!
       // [1] check which experiment we have
-      
-      if(count < nExp_test[0] ){
-        FB.fb_type = 1;
-      }
-      if(count >=nExp_test[0]  && count <=nExp_test[3]){
-        switch (Group)
-        {
-        case 1: // group 1 Continuous feedback
-          FB.fb_type = 1;
-          break;
-        case 2: // group 2 No feedback
-          FB.fb_type = 0;
-          break;
-        case 3: // group 3 DESC
-          FB.fb_type = 3;
-          break;
-        case 4: // group 4 DESC+
-          FB.fb_type = 2;
-          break;
-        default:
-          FB.fb_type = 1;
-          break;
+      if(!manualFB){
+        if(count <= nExp_test[0]){
+          FB.fb_type = 4;
         }
-      }
-      if(count > nExp_test[3]){
-        FB.fb_type = 0;
+        if(count > nExp_test[0]  && count <=nExp_test[3]){
+          switch (Group)
+          {
+          case 1: // group 1 Continuous feedback
+            FB.fb_type = 4;
+            break;
+          case 2: // group 2 No feedback
+            FB.fb_type = 0;
+            break;
+          case 3: // group 3 DESC
+            FB.fb_type = 3;
+            break;
+          case 4: // group 4 DESC+
+            FB.fb_type = 2;
+            break;
+          default:
+            FB.fb_type = 1;
+            break;
+          }
+        }
+        if(count > nExp_test[3]){
+          FB.fb_type = 0;
+        }
       }
       // catch trials
       
       // [2] read force from sensorized object
       cube.write2Fifo();
+      
       /*
       if(!(cube.fifoL.isEqual2(cube.fifoL.last()))){
         if(cube.fifoL.last()>=0){
@@ -306,21 +343,28 @@ void loop()
         }
       }
       */
-      PosCmd = cube.fifoL.isEqual3(cube.fifoL.last());
-      if(PosCmd>=200){ 
+      
+      PosCmd = cube.fifoL.isEqual3(cube.fifoL.last()); // jumps to zero if really small forces are in
+
+      if(PosCmd>=160){ 
         PosCmd2 = 255;
       }else{
-        PosCmd2 = (PosCmd*(unsigned int) 255)/(unsigned int)200;
+        PosCmd2 = (PosCmd*(unsigned int) 255)/(unsigned int)160;
       }
+
       // [3] move motor
       // test scenario
       if(!manual){
-       FB.trfb(cube.fifoR, cube.fifoL, cube.fifoT, x*PosCmd/10, tactor);
+       FB.trfb(cube.fifoR, cube.fifoL, cube.fifoT, x*PosCmd2/10, tactor);
       }else{
-        if(pull_up){
-          tactor.setPosition(255); // pull it down.
-        }else{
-          tactor.setPosition(0); // push it pull_up.
+        if(!cmdSent){
+          if(pull_up){
+            tactor.setPosition(255); // pull it down.
+            cmdSent = true;
+          }else{
+            tactor.setPosition(50); // push it pull_up.
+            cmdSent = true;
+          }
         }
       }
       
@@ -329,25 +373,31 @@ void loop()
       //tactor.setPWM((err>0),abs(err));      
       
       // [4] red for broken box
-      if((cube.fifoL.last()>cubeLimit)&& !failed){
+      if((cube.fifoL.last()>cubeLimit)){
+        if(!failed){
         digitalWrite(RED,HIGH);
         digitalWrite(GRN,LOW);
         digitalWrite(WHT,LOW);
         failed = true;
         counterHold = 0;
         err_flag = 1;
-      }else{
-        if(FB.state == 2 && counterHold < 100 ){
-          counterHold++;
         }
-        if(counterHold >= 100 && !failed ){
+      }
+      else
+      {
+        if(FB.state == 2 && counterHold < 300 && !failed  && !success){
+          counterHold++;
+          // debug
+          //Serial.println(counterHold);
+        }
+        if(counterHold >= 300 && !failed && !success ){
           digitalWrite(WHT,HIGH);
           counterHold = 0;
           success = 1;
         }
       }
       
-     //tactor.getPosition(true); // waits for the response 
+     tactor.getPosition(false); // waits for the response 
      
      if(count_old < count){
       count_old = count;
@@ -422,44 +472,73 @@ void logData(){
       break;
     case '3':
       // repeat this trial
+      record = 1;
       count--;
       count_old--;
-      err_flag = 1;      // flag error 
+      err_flag = 3;      // flag error 
       break;
     case '5':
       // toggle on/off streaming
       stopStream = !stopStream;
+      break;
     // testing system
     case '0': // start manual
       manual = !manual;
-      pull_up = false; 
+      pull_up = false;
+      break;
     case '9': // go up or down, manual must be set first.
       pull_up = !pull_up;
+      cmdSent = false;
+      break;
     case 'R':
       count = 0;
       move_robots = 0;
       record = 0;
       break;
     case 'S':
-      debugvar = Serial.read()-48;
-      if(debugvar >= 0 && debugvar <= 5 ){
-        FB.fb_type = debugvar;
+      tempVar = Serial.read()-48;
+      if(tempVar >= 0 && tempVar <= 5 ){
+        FB.fb_type = tempVar;
+        manualFB = true;
+      }
+      if (tempVar == 6){
+        manualFB = false;
       }
       break;
     case 'G':
-      debugvar = Serial.read()-48;
-      if(debugvar > 0 && debugvar <= 4){
-      Group = (char) debugvar;
+      // sets Group.
+      tempVar = Serial.read()-48;
+      if(tempVar > 0 && tempVar <= 4){
+      Group = (char) tempVar;
       count = 0;
       }
       break;
     case 'M':
-      debugvar = Serial.read()-48;
-      if(debugvar > 0 && debugvar <= 4){      
-      change_nExp((int) debugvar -1);
+      // sets experimental setup.
+      tempVar = Serial.read()-48;
+      if(tempVar > 0 && tempVar <= 4){      
+      change_nExp((int) tempVar -1);
       count = 0;
       }
-      break;    
+      break;
+    case 'C':
+      {
+      // manually sets the count.
+      unsigned char i = 0;
+      tempVar=0;
+      char nChar [3] = {0,0,0};
+      
+      while(Serial.available()){
+       nChar[i]= Serial.read();
+       i++;
+      }
+      count = atoi(nChar);
+      }
+      break;
+    case 'Z':
+      // resets the tactor
+      tactor.Start();
+      break;
     }
   }
   if(!stopStream){ 
@@ -479,14 +558,14 @@ void logData(){
   Serial.print("\t");
   Serial.print((int)FB.state);
   Serial.print("\t");
-  Serial.print((int)FB.vibrate);
+  Serial.print((int)FB.vib_state);
   // forces
   Serial.print("\t");
   Serial.print(cube.fifoR.last());
   Serial.print("\t");
   Serial.print(cube.fifoL.last());
   Serial.print("\t");
-  Serial.print(cube.fifoT.last());
+  Serial.print(cube.fifoF.last());
   Serial.print("\t");
   //error
   Serial.print((int)err_flag);
@@ -500,35 +579,49 @@ void logData(){
   Serial.print(pocketNum);
   Serial.print("\n");
   }
+  if(err_flag == 3){
+    record= 0;
+    err_flag =0;
+  }
 }
 
 
 
 
 void debounceInterrupt() {
- if((millis() - last_micros) > debouncing_time ) {
+ if((millis() - last_micros) > debouncing_time && move_robots) {
       if(state){ // from low -> High
       last_micros = millis();
       state = digitalRead(interruptPin);
       digitalWrite(GRN, LOW);
       digitalWrite(RED, LOW);
       digitalWrite(WHT, LOW);
-      record = 1;
+      record = 0;
+      failed = 0;
+      success = 0;
+      count++;
+      aPause = false;
       }
       else
       { // from high -> low
-      if((millis()- timeFromLastIncrement)>1000 && move_robots){
+      if((millis()- timeFromLastIncrement) > 100 ){
       success = 0;
       err_flag =0;
       failed = 0;
-      count++;
+      if (count > 0) record = 1;
+      else record =0;
       if(count > nExp_test[2])
       {
-        x = (unsigned char) random(8,12);
+        if( count%5 == 0) {
+          old_x = x;
+          x = (unsigned char) random(8,12); // changes every 5 times
+          if(x == old_x) {
+             x = (unsigned char) random(8,12);
+          }
+        }
       }else{
         x = 10;
       }
-      record = 0;
       digitalWrite(RED, LOW);
       digitalWrite(WHT, LOW);
       digitalWrite(GRN, HIGH);
@@ -557,6 +650,13 @@ void debounceButton(unsigned int nPin){
   }
 }
 
-bool checkCorrectStages(char stateVect){
-// to-do.
+
+bool checkIfPause(void){
+  // if it arrived to marker
+  for(unsigned char i = 0; i<5;i++){
+    if (count == nExp_test[i]+1) return true;
+  }
+  // if you want to pause on purpose
+
+  return false;
 }

@@ -125,14 +125,11 @@ int FIFO::movingAvg(){
 
 bool FIFO::isEqual2(double number)
 {
-  // this function compares if the FIFO values are equal to a number within some error margin (err)
-  double Lowest_threshold = 0;
-  double Highest_threshold = number + 1;
+  // this function compares if the FIFO values are equal to a number within some error margin (err) (in absolute not percentage)
+  double Lowest_threshold = number - 5;
+  double Highest_threshold = number + 5;
   double voteCounter = 0.0;
-  if(number > 1){
-  Lowest_threshold = number  - 1;
-  }
-
+  
   for (int i = 0; i < FIFOsize; i++)
   {
     double d1;

@@ -51,7 +51,7 @@ void sensorizedObj::write2Fifo(){
   fifoR.append(sat2zero(R_biased));
   fifoT.append(sat2zero(B_biased));
   //FSR
-  fifoF.append(sat2zero(F_biased));
+  fifoF.append(B_biased); // without zeroing if under!
 }
 
 void sensorizedObj::biasCalculate(int Seconds, volatile bool& intFlag)

@@ -278,20 +278,25 @@ void Tactor::statusREADER(){
 
 void Tactor::Start(){
   //stop();
-  delay(5000);
+  // The command to set the position to zero
+  Serial1.write(0x5f);
+  Serial1.write(0x01);
+  Serial1.write(0x23);
+  Serial1.write(0x01); 
+  delay(1);
+  // calibrate command
   Serial1.write(0x5f);
   Serial1.write(0x01);
   Serial1.write((byte) 0x00 );
   Serial1.write(0x01); 
-  delay(5000);
-  getStatus(false); 
-  if(status == 0){
-    vibrate(4,60);
-    delay(500);
-    vibrate(4,60);
-  }else{
-    vibrate(4,60);
-  }
+  // getStatus(false); 
+  // if(status == 0){
+  //   vibrate(4,60);
+  //   delay(500);
+  //   vibrate(4,60);
+  // }else{
+  //   vibrate(4,60);
+  // }
 }
 
 char Tactor::setPID(char _Kp, char _Ki, char _Kd, char _err){
