@@ -59,9 +59,6 @@ void setup()
   // for 100 Hz
  
   TIMSK1 |= (1 << TOIE1); // Timeroverflow enable
-  
-
-
 
   // TCCR1B |= (1 << CS10);  
   // TCNT1 = 63936; // 10 kHz
@@ -92,38 +89,14 @@ Tactor tactor;
 sensorizedObj cube(A2, A3, A1, A0); // bottom left right FSR
 // start TRFB method
 TRFB FB;
-//LOGGER logD;
-// ISR
 
 
 volatile bool intFlag = false;
-
-
-// not used  kept for refrence legacy code
-// const long period = 20;
-// long previousTime = 0;
-// long currentTime = 0;
-// volatile char tcks = 0;
-// volatile bool newData = false;
-// unsigned int t = 0;
-// int pos = 0;
-// double summ[3] = {0};
-// unsigned char debugCounter = 0;
-// int  deg  = 0x61;
-// char deg2 = 0x05;
-// unsigned int timr =0x00;
-// unsigned char buf[3] = { 0,0, 0};
-// unsigned char Serialstart1 = false;  // true if start falg arrived in serial 1
-// int FrsCmd = 500;
-// bool open = false;
-
-
 bool started = false;
 bool failed = false;
 byte u = LOW;
 bool TimeOutErr = false;
 bool stopStream = false;
-
 
 unsigned long tempVar = 0;
 char record = 0;
@@ -132,7 +105,6 @@ char move_robots = 0;
 int counterHold = 0;
 int success = 0;
 bool strt = false;
-
 
 unsigned int pocketNum = 0; 
 unsigned int cubeLimit = 150; // was 190 
@@ -145,7 +117,7 @@ signed int err = 0;
 
 bool manual = false;
 bool pull_up = false;
-bool manualFB = false;
+bool manualFB = true;
 bool aPause = false;
 
 unsigned char x = 10;
@@ -273,75 +245,11 @@ void loop()
         TimeOutErr = false;
         intFlag = false;
       }
-      // routine for PID
-      /*
-      if(calPIDgaines){
-        if(time < timeLimit){
-          if(tactor.commandSent){
-            // increment the timer
-          }
-        }
-        else
-        {
-          if(tactor.hasArrived(true)){
-            calPIDgains = false;
-            tactor.setPosition(0x0000);
-          } else {
-            tryCounters++;
-            if(tryCounter < 5){
-            tactor.getPID();
-            tactor.setPID( tactor.Kp*1.1, Ki, Kd,_error);
-            time = 0;
-            tactor.commandSent = false;
-            }
-          }
-        }
-        if(!tactor.commandSent){
-        tactor.setPosition(0x9000);
-        tactor.commandSent = true;
-        }
-      }
-      */
 
-      // scheme for experiment!
-      // [1] check which experiment we have
-      if(!manualFB){
-        // if(count <= nExp_test[0]){
-        //   FB.fb_type = 4;
-        // }
-        // if(count > nExp_test[0]  && count <=nExp_test[3]){
-        //   switch (Group)
-        //   {
-        //   case 1: // group 1 Continuous feedback
-        //     FB.fb_type = 5;
-        //     break;
-        //   case 2: // group 2 No feedback
-        //     FB.fb_type = 2;
-        //     break;
-        //   default:
-        //     FB.fb_type = 3;
-        //     break;
-        //   }
-        // }
-        // if(count > nExp_test[3]){
-        //   FB.fb_type = 0;
-        // }
-      }
-      // catch trials
-      
       // [2] read force from sensorized object
       cube.write2Fifo();
-      
-      /*
-      if(!(cube.fifoL.isEqual2(cube.fifoL.last()))){
-        if(cube.fifoL.last()>=0){
-        PosCmd = (unsigned int) cube.fifoL.last();
-        }
-      }
-      */
-      
+      // [3] set what is the command sent 
       PosCmd = cube.fifoL.isEqual3(cube.fifoL.last()); // jumps to zero if really small forces are in
-
       if(PosCmd>=160){ 
         PosCmd2 = 255;
       }else{
@@ -349,9 +257,8 @@ void loop()
       }
 
       // [3] move motor
-      // test scenario
       if(!manual){
-       FB.trfb(cube.fifoR, cube.fifoL, cube.fifoT, x*PosCmd2/10, tactor);
+       FB.trfb(cube.fifoR, cube.fifoL, cube.fifoT, PosCmd2, tactor);
       }else{
         if(!cmdSent){
           if(pull_up){
@@ -383,8 +290,6 @@ void loop()
       {
         if(FB.state == 2 && counterHold < 300 && !failed  && !success){
           counterHold++;
-          // debug
-          //Serial.println(counterHold);
         }
         if(counterHold >= 300 && !failed && !success ){
           digitalWrite(WHT,HIGH);
@@ -408,39 +313,14 @@ void loop()
 
      // logger 
      logData();
-      // debugging
-      // if(Serial1.available()){
-      //   Serial.write(Serial1.read());
-      // }
-
-     //debounceButton(btnFil);
-     //debounceButton(btnRpt);
-     //buttons pull
-    //  if(btnCount[btnStp-4]){
-    //   record = !record;
-    //   move_robots = record;
-    //   stopStream = !record;
-    //   btnCount[btnStp-4] = 0;
-    //  }
-    //  if(btnCount[btnRpt-4]){
-    //   count--;
-    //   count_old--;
-    //   err_flag = 1; 
-    //   btnCount[btnRpt-4] = 0;
-    //  }
-    //  if(btnCount[btnFil-4]){
-    //   err_flag =1;
-    //   digitalWrite(RED,HIGH);
-    //   btnCount[btnFil -4] =0;
-    //  }
-
      intFlag = false;
      
     }
+
     if(TimeOutErr){
-      // reset!
       tactor.stop();
     }
+  
   }
 
   //timeOutError! a cycle took longer than 10 msec // blocks everything
@@ -537,6 +417,7 @@ void logData(){
       break;
     }
   }
+
   if(!stopStream){ 
   // general 
   Serial.print((int)move_robots);
@@ -606,18 +487,6 @@ void debounceInterrupt() {
       failed = 0;
       if (count > 0) record = 1;
       else record =0;
-      if(count > nExp_test[0])
-      {
-        if( count%5 == 0) {
-          old_x = x;
-          //x = (unsigned char) random(8,12); // changes every 5 times
-          //if(x == old_x) {
-          //   x = (unsigned char) random(8,12);
-          //}
-        }
-      }else{
-        x = 10;
-      }
       digitalWrite(RED, LOW);
       digitalWrite(WHT, LOW);
       digitalWrite(GRN, HIGH);
@@ -649,7 +518,7 @@ void debounceButton(unsigned int nPin){
 
 bool checkIfPause(void){
   // if it arrived to marker
-  for(unsigned char i = 0; i<5;i++){
+  for(unsigned char i = 0; i<3;i++){
     if (count == nExp_test[i]+1) return true;
   }
   // if you want to pause on purpose
