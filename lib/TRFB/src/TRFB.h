@@ -55,7 +55,7 @@ public:
   void trfb(FIFO fifo,FIFO fifo1, FIFO fifo2, int Pos, Tactor tactor);
   bool liftedFlag = 0; //[7]
   char vibrate = 0;
-  char vib_state = 0; // viberates on different conditions
+  
   // 00: not defined. 
   // 01: touched .
   // 02: lifted without touching.
@@ -67,7 +67,9 @@ public:
   // 08: lifted the object after stable grasp.
   // 09: replaced object after stable grasp.
   // 10: remved touch from the object after stable grasp.
-  unsigned char fb_type = 0; 
+  char vib_state = 0; // viberates on different conditions
+  
+
   /* 
      0 no feedback
      1 continuous feedback 
@@ -76,6 +78,8 @@ public:
      4 continuous without vibration 
      5 tranistory witout vibration
   */
+  unsigned char fb_type = 0; 
+  
 };
 
 #endif

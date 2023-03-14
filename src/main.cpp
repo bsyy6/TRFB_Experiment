@@ -151,12 +151,14 @@ bool aPause = false;
 unsigned char x = 10;
 unsigned char old_x = 10;
 
-unsigned int nExp [2][5] = {{30,230,330,430,455}, {2, 7, 10, 30, 35}};
-unsigned int nExp_test[5] = {30,230,330,430,455};
+// unsigned int nExp [2][5] = {{30,230,330,430,455}, {2, 7, 10, 30, 35}};
+// unsigned int nExp_test[5] = {30,230,330,430,455};
+unsigned int nExp [2][3] = {{3,103,153}, {2, 7, 10}}; // accomdation -> train -> test 
+unsigned int nExp_test[3] = {3,103,153};
 
 void change_nExp(unsigned int t){
-  for (int i = 0; i<5; i++){
-     nExp_test[i] =nExp[t][i];
+  for (int i = 0; i<3; i++){
+     nExp_test[i] =nExp[t][i]; 
   }
 }
 
@@ -304,32 +306,26 @@ void loop()
       // scheme for experiment!
       // [1] check which experiment we have
       if(!manualFB){
-        if(count <= nExp_test[0]){
-          FB.fb_type = 4;
-        }
-        if(count > nExp_test[0]  && count <=nExp_test[3]){
-          switch (Group)
-          {
-          case 1: // group 1 Continuous feedback
-            FB.fb_type = 4;
-            break;
-          case 2: // group 2 No feedback
-            FB.fb_type = 0;
-            break;
-          case 3: // group 3 DESC
-            FB.fb_type = 3;
-            break;
-          case 4: // group 4 DESC+
-            FB.fb_type = 2;
-            break;
-          default:
-            FB.fb_type = 1;
-            break;
-          }
-        }
-        if(count > nExp_test[3]){
-          FB.fb_type = 0;
-        }
+        // if(count <= nExp_test[0]){
+        //   FB.fb_type = 4;
+        // }
+        // if(count > nExp_test[0]  && count <=nExp_test[3]){
+        //   switch (Group)
+        //   {
+        //   case 1: // group 1 Continuous feedback
+        //     FB.fb_type = 5;
+        //     break;
+        //   case 2: // group 2 No feedback
+        //     FB.fb_type = 2;
+        //     break;
+        //   default:
+        //     FB.fb_type = 3;
+        //     break;
+        //   }
+        // }
+        // if(count > nExp_test[3]){
+        //   FB.fb_type = 0;
+        // }
       }
       // catch trials
       
@@ -610,14 +606,14 @@ void debounceInterrupt() {
       failed = 0;
       if (count > 0) record = 1;
       else record =0;
-      if(count > nExp_test[2])
+      if(count > nExp_test[0])
       {
         if( count%5 == 0) {
           old_x = x;
-          x = (unsigned char) random(8,12); // changes every 5 times
-          if(x == old_x) {
-             x = (unsigned char) random(8,12);
-          }
+          //x = (unsigned char) random(8,12); // changes every 5 times
+          //if(x == old_x) {
+          //   x = (unsigned char) random(8,12);
+          //}
         }
       }else{
         x = 10;

@@ -30,8 +30,8 @@ void TRFB::reset()
 {
   coolDownTimer = coolDownTimerReset;
   coolDownFlag = 0;
-  droppedFlag = 0;
-  liftedFlag = 0;
+  // droppedFlag = 0;
+  // liftedFlag = 0;
   mainTimer = 0;
   holdTimer = 0;
 }
@@ -199,11 +199,11 @@ void TRFB::stateUpdate(FIFO fifo, FIFO fifo1, FIFO fifo2, int step)
     //  safety for sudden drops
     if ((fifo1.isLess(fifo1.vector[0] * 0.1)) && (liftedFlag == 1.0))
     {
-      // reset();
-      // droppedFlag = 1.0;
-      // vibrate++;
-      // vib_state= 6;
-      // newState = 0;
+      //  reset();
+      //  droppedFlag = 1.0;
+      //  vibrate++;
+      //  vib_state= 6;
+      //  newState = 0;
     }
 
     // safety in case small return to 0 state
