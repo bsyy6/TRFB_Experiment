@@ -298,7 +298,7 @@ void loop()
         }
       }
       
-     tactor.getPosition(false); // waits for the response 
+     tactor.getPosition(true); // waits for the response 
      
      if(count_old < count){
       count_old = count;
