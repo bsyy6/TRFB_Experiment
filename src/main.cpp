@@ -34,6 +34,11 @@ const int btnRpt  = 4;
 unsigned long btn_debouncing_time = 500;
 bool cmdSent = false;
 
+bool startBench = false; //used this to bench-test the device.
+int startBench_i = 0;
+unsigned int sine_arrayLength = 101;
+bool writingToMemory = false;
+
 void debounceInterrupt();
 void debounceButton(unsigned int nPin);
 bool checkIfPause(void);
@@ -197,7 +202,7 @@ void loop()
     strt = 1;
   }
   
-  // signal it is done ... with lights
+  // signal it is done with lights
   for ( int i = 0 ; i<4; i++){
     delay(250);
     digitalWrite(WHT,HIGH);
@@ -257,7 +262,7 @@ void loop()
       }
 
       // [3] move motor
-      if(!manual){
+      if(!manual && !startBench){
        FB.trfb(cube.fifoR, cube.fifoL, cube.fifoT, PosCmd2, tactor);
       }else{
         if(!cmdSent){
@@ -270,7 +275,20 @@ void loop()
           }
         }
       }
-      
+
+      if(startBench){
+        
+        if(startBench_i == 0){
+          tactor.setPosition_benchTest(tactor._Sine[0]);
+        }else{
+          tactor.setPosition_benchTest(tactor._Sine[startBench_i]);
+        }
+        startBench_i++;
+        if(startBench_i>100){
+          startBench = false;
+          startBench_i = 0;
+        }
+      }
       // force control idea ...  ( not used now 12/10/2022)
       //err = (cube.fifoF.last() - FrsCmd)/2;
       //tactor.setPWM((err>0),abs(err));      
@@ -298,8 +316,10 @@ void loop()
         }
       }
       
+      
      tactor.getPosition(true); // waits for the response 
      
+
      if(count_old < count){
       count_old = count;
       timeFromLastIncrement = millis();
@@ -312,9 +332,33 @@ void loop()
      pocketNum++;
 
      // logger 
-     logData();
+     if(!startBench){
+      logData();
+     }else{
+      Serial.write(0xFF);
+      Serial.write(((unsigned int)tactor.position>> 8) & 0xff);
+      Serial.write((unsigned int)tactor.position & 0xff);
+      Serial.write(((unsigned int)tactor._Sine[startBench_i-1]>> 8) & 0xff);
+      Serial.write((unsigned int)tactor._Sine[startBench_i-1] & 0xff);
+     }
+
      intFlag = false;
      
+
+     if(writingToMemory){
+      // Read data into the array
+        for (unsigned int i = 0; i < sine_arrayLength; i++) {
+          // Read 2 bytes at a time as uint16_t
+          uint8_t buffer[2];
+          Serial.readBytes(buffer, 2);
+          tactor._Sine[i] = uint16_t(buffer[1]) | uint16_t(buffer[0]) << 8;
+        } 
+        TimeOutErr = false;
+        intFlag = false;
+        writingToMemory = false;
+     }
+
+
     }
 
     if(TimeOutErr){
@@ -415,7 +459,17 @@ void logData(){
       // resets the tactor
       tactor.Start();
       break;
+    case 'O': // oh not zero      
+      tactor.setPosition_benchTest(0x5000);
+      startBench = true;
+      
+      break;
+    case 'A':
+      writingToMemory = true;
+        
+      break;
     }
+
   }
 
   if(!stopStream){ 

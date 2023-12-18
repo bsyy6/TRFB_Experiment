@@ -152,6 +152,7 @@ unsigned int FIFO::isEqual3(unsigned int number)
     return(0);
   }
 
+  // accepts only increments or decrements of 3 or more
   if (number > latestNum){
     if(number-latestNum > 3){
       latestNum = number;

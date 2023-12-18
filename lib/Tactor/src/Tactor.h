@@ -15,6 +15,7 @@ public:
   Tactor();
   void write(char cmdName[], char nBytes = 0);
   void setPosition(unsigned int Pos);
+  void setPosition_benchTest(unsigned int Pos); // takes encoder positions instead
   void stop();
   void vibrate(unsigned char N, unsigned char dur);
   void feedbackOn();
@@ -51,7 +52,7 @@ unsigned char kp;
 unsigned char ki;
 unsigned char kd;
 unsigned char er;
-
+unsigned int _Sine[101] ={20480 , 22215 , 23934 , 25622 , 27265 , 28848 , 30356 , 31777 , 33098 , 34306 , 35392 , 36345 , 37158 , 37822 , 38333 , 38685 , 38876 , 38903 , 38767 , 38468 , 38010 , 37396 , 36632 , 35725 , 34682 , 33513 , 32229 , 30840 , 29360 , 27800 , 26176 , 24501 , 22790 , 21059 , 19323 , 17597 , 15896 , 14236 , 12632 , 11097 ,  9646 ,  8291 ,  7044 ,  5916 ,  4917 ,  4057 ,  3342 ,  2780 ,  2374 ,  2130 ,  2048 ,  2130 ,  2374 ,  2780 ,  3342 ,  4057 ,  4917 ,  5916 ,  7044 ,  8291 ,  9646 , 11097 , 12632 , 14236 , 15896 , 17597 , 19323 , 21059 , 22790 , 24501 , 26176 , 27800 , 29360 , 30840 , 32229 , 33513 , 34682 , 35725 , 36632 , 37396 , 38010 , 38468 , 38767 , 38903 , 38876 , 38685 , 38333 , 37822 , 37158 , 36345 , 35392 , 34306 , 33098 , 31777 , 30356 , 28848 , 27265 , 25622 , 23934 , 22215 ,20480 };
 private:
   // look up table for stroke positions
   unsigned long _stroke = 0;

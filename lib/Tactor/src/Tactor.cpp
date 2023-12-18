@@ -101,6 +101,27 @@ void Tactor::setPosition(unsigned int Pos)
   Serial1.write(_board);
 }
 
+void Tactor::setPosition_benchTest(unsigned int Pos)
+{
+  // this takes encoder positions instead of 0-255
+  Serial1.write(0x5F);
+  Serial1.write(_board);
+  Serial1.write(0x21); // we never really get the 17th byte thing in this, so this is the standarad message to set the tactor position.
+
+  // why this? Because of undefined behaviour in case the integer has is less than 255 and you shift it write by 8 bits.
+  if (Pos> 255)
+  {
+    Serial1.write((Pos >> 8) & 0xFF); // MSB
+    Serial1.write(Pos & 0xFF);        // LSB
+  }
+  else
+  {
+    Serial1.write((byte) 0x00);             // MSB
+    Serial1.write(Pos & 0xFF); //LSB
+  }
+  Serial1.write(_board);
+}
+
 void Tactor::getPosition(bool wait){
   Serial1.write(0x5F);
   Serial1.write(_board);
